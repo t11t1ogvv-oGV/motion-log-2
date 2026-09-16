@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const loadedKey = 'motion-log-bundled-v1';
+  const loadedKey = 'motion-log-bundled-v2';
   const typeMap = ['걷기','러닝','자전거','등산','수영','기타'];
 
   const setStatus = (message, isError = false) => {
@@ -39,21 +39,39 @@ const bootstrapScript = `
     if (el) el.remove();
   };
 
+  const decodeBase64 = (parts) => {
+    let b64 = parts.join('')
+      .replace(/\uFEFF/g, '')
+      .replace(/\s+/g, '')
+      .replace(/-/g, '+')
+      .replace(/_/g, '/');
+
+    // Normalize padding once after all chunks are concatenated.
+    b64 = b64.replace(/=+/g, '');
+    if (b64.length % 4 === 1) {
+      throw new Error('base64 length is invalid: ' + b64.length);
+    }
+    b64 += '='.repeat((4 - (b64.length % 4)) % 4);
+
+    try {
+      const bin = atob(b64);
+      const bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+      return bytes;
+    } catch (error) {
+      throw new Error('base64 decode failed: ' + (error instanceof Error ? error.message : String(error)));
+    }
+  };
+
   const loadBundled = async () => {
     setStatus('Samsung Health 데이터 불러오는 중…');
     const parts = await Promise.all([1,2,3,4].map(async (n) => {
-      const res = await fetch('/motion-log-data.part' + n, { cache: 'no-store' });
+      const res = await fetch('/motion-log-data.part' + n + '?v=2', { cache: 'no-store' });
       if (!res.ok) throw new Error('dataset part ' + n + ' HTTP ' + res.status);
       return res.text();
     }));
 
-    const b64 = parts.join('');
-    if (!b64 || b64.length < 100) throw new Error('dataset is empty');
-
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
-
+    const bytes = decodeBase64(parts);
     const DecompressionStreamCtor = globalThis.DecompressionStream;
     if (!DecompressionStreamCtor) throw new Error('gzip decompression unsupported');
 
@@ -62,7 +80,7 @@ const bootstrapScript = `
     if (!payload || !Array.isArray(payload.r)) throw new Error('invalid dataset payload');
 
     const baseMs = Date.UTC(2020, 0, 1);
-    const data = payload.r.map((row, i) => {
+    return payload.r.map((row, i) => {
       const date = new Date(baseMs + Number(row[0] || 0) * 86400000).toISOString().slice(0, 10);
       const n = (value) => Number(value) ? Number(value) / 10 : undefined;
       return {
@@ -83,8 +101,6 @@ const bootstrapScript = `
         source: 'Samsung Health',
       };
     });
-
-    return data;
   };
 
   (async () => {
