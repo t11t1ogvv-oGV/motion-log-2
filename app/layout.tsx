@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const loadedKey = 'motion-log-bundled-v3';
+  const loadedKey = 'motion-log-bundled-v4';
   const typeMap = ['걷기','러닝','자전거','등산','수영','기타'];
 
   const setStatus = (message, isError = false) => {
@@ -79,8 +79,8 @@ const bootstrapScript = `
 
   const loadBundled = async () => {
     setStatus('Samsung Health 데이터 불러오는 중…');
-    const parts = await Promise.all([1,2,3,4].map(async (n) => {
-      const res = await fetch('/motion-log-data.part' + n + '?v=3', { cache: 'no-store' });
+    const parts = await Promise.all([1,2,3,4,5].map(async (n) => {
+      const res = await fetch('/motion-log-data.part' + n + '?v=4', { cache: 'no-store' });
       if (!res.ok) throw new Error('dataset part ' + n + ' HTTP ' + res.status);
       return res.text();
     }));
