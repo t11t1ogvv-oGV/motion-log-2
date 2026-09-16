@@ -11,13 +11,16 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   viewportFit: 'cover',
-  themeColor: '#111315',
+  themeColor: '#f3f0ea',
 };
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
-      <body>{children}</body>
+      <body>
+        <script dangerouslySetInnerHTML={{ __html: "try{if(!localStorage.getItem('motion-log-theme-v2'))localStorage.setItem('motion-log-theme-v2','light')}catch{}" }} />
+        {children}
+      </body>
     </html>
   );
 }
