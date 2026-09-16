@@ -20,15 +20,36 @@ const bootstrapScript = `
   const loadedKey = 'motion-log-bundled-v1';
   const typeMap = ['걷기','러닝','자전거','등산','수영','기타'];
 
+  const setStatus = (message, isError = false) => {
+    let el = document.getElementById('motion-log-loader-status');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'motion-log-loader-status';
+      el.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:9999;padding:10px 12px;border:1px solid rgba(0,0,0,.12);border-radius:10px;background:#fff;box-shadow:0 8px 30px rgba(0,0,0,.08);font:12px/1.4 system-ui,sans-serif;color:#222;';
+      document.body.appendChild(el);
+    }
+    el.textContent = message;
+    el.style.display = 'block';
+    el.style.borderColor = isError ? '#b42318' : 'rgba(0,0,0,.12)';
+    el.style.color = isError ? '#b42318' : '#222';
+  };
+
+  const clearStatus = () => {
+    const el = document.getElementById('motion-log-loader-status');
+    if (el) el.remove();
+  };
+
   const loadBundled = async () => {
-    const parts = await Promise.all([1,2,3,4].map((n) =>
-      fetch('/motion-log-data.part' + n, { cache: 'no-store' }).then((res) => {
-        if (!res.ok) throw new Error('dataset part ' + n + ' failed');
-        return res.text();
-      })
-    ));
+    setStatus('Samsung Health 데이터 불러오는 중…');
+    const parts = await Promise.all([1,2,3,4].map(async (n) => {
+      const res = await fetch('/motion-log-data.part' + n, { cache: 'no-store' });
+      if (!res.ok) throw new Error('dataset part ' + n + ' HTTP ' + res.status);
+      return res.text();
+    }));
 
     const b64 = parts.join('');
+    if (!b64 || b64.length < 100) throw new Error('dataset is empty');
+
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
@@ -38,10 +59,10 @@ const bootstrapScript = `
 
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStreamCtor('gzip'));
     const payload = await new Response(stream).json();
-    if (!payload || !Array.isArray(payload.r)) throw new Error('invalid dataset');
+    if (!payload || !Array.isArray(payload.r)) throw new Error('invalid dataset payload');
 
     const baseMs = Date.UTC(2020, 0, 1);
-    return payload.r.map((row, i) => {
+    const data = payload.r.map((row, i) => {
       const date = new Date(baseMs + Number(row[0] || 0) * 86400000).toISOString().slice(0, 10);
       const n = (value) => Number(value) ? Number(value) / 10 : undefined;
       return {
@@ -62,23 +83,32 @@ const bootstrapScript = `
         source: 'Samsung Health',
       };
     });
+
+    return data;
   };
 
-  try {
-    const raw = localStorage.getItem(key);
-    const existing = raw ? JSON.parse(raw) : null;
-    if (Array.isArray(existing) && existing.length > 0) return;
-    if (localStorage.getItem(loadedKey) === '1') return;
+  (async () => {
+    try {
+      const raw = localStorage.getItem(key);
+      const existing = raw ? JSON.parse(raw) : null;
+      if (Array.isArray(existing) && existing.length > 0) {
+        clearStatus();
+        return;
+      }
 
-    loadBundled()
-      .then((data) => {
-        if (!data.length) return;
-        localStorage.setItem(key, JSON.stringify(data));
-        localStorage.setItem(loadedKey, '1');
-        window.location.reload();
-      })
-      .catch(() => {});
-  } catch (_) {}
+      const data = await loadBundled();
+      if (!data.length) throw new Error('dataset contains 0 records');
+
+      localStorage.setItem(key, JSON.stringify(data));
+      localStorage.setItem(loadedKey, '1');
+      setStatus(data.length.toLocaleString('ko-KR') + '개 기록을 불러왔습니다.');
+      window.location.reload();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      console.error('[Motion Log] Samsung Health import failed:', error);
+      setStatus('Samsung Health 데이터 불러오기 실패: ' + message, true);
+    }
+  })();
 })();
 `;
 
