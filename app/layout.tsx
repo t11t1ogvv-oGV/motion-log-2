@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const loadedKey = 'motion-log-bundled-v5';
+  const loadedKey = 'motion-log-bundled-v6';
   const typeMap = ['걷기','러닝','자전거','등산','수영','기타'];
 
   const setStatus = (message, isError = false) => {
@@ -40,19 +40,24 @@ const bootstrapScript = `
   };
 
   const normalizeBase64 = (value) => value
-    .replace(/\\uFEFF/g, '')
-    .replace(/\\s+/g, '')
+    .replace(/\uFEFF/g, '')
+    .replace(/\s+/g, '')
     .replace(/-/g, '+')
     .replace(/_/g, '/');
 
   const loadBundled = async () => {
     setStatus('Samsung Health 데이터 불러오는 중…');
     const parts = await Promise.all([1,2,3,4].map(async (n) => {
-      const res = await fetch('/motion-log-data.part' + n + '?v=5', { cache: 'no-store' });
+      const res = await fetch('/motion-log-data.part' + n + '?v=6', { cache: 'no-store' });
       if (!res.ok) throw new Error('dataset part ' + n + ' HTTP ' + res.status);
-      return normalizeBase64(await res.text());
+      const text = normalizeBase64(await res.text());
+      if (!text) throw new Error('dataset part ' + n + ' is empty');
+      return text;
     }));
 
+    // These four files are sequential slices of one Base64 payload.
+    // Join the text first and decode exactly once; decoding slices separately
+    // would reset Base64 byte alignment at every file boundary.
     let b64 = parts.join('').replace(/=+$/g, '');
     if (!b64) throw new Error('dataset is empty');
     if (b64.length % 4 === 1) throw new Error('base64 length is invalid: ' + b64.length);
@@ -101,6 +106,7 @@ const bootstrapScript = `
         return;
       }
       const data = await loadBundled();
+      if (!data.length) throw new Error('dataset contains 0 records');
       localStorage.setItem(key, JSON.stringify(data));
       localStorage.setItem(loadedKey, '1');
       setStatus(data.length.toLocaleString('ko-KR') + '개 기록을 불러왔습니다.');
