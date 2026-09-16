@@ -14,11 +14,30 @@ export const viewport: Viewport = {
   themeColor: '#f3f0ea',
 };
 
+const bootstrapScript = `
+(() => {
+  const key = 'motion-log-records-v4';
+  try {
+    const raw = localStorage.getItem(key);
+    const existing = raw ? JSON.parse(raw) : null;
+    if (Array.isArray(existing) && existing.length > 0) return;
+    fetch('/motion-log-data.json', { cache: 'no-store' })
+      .then((res) => res.ok ? res.json() : Promise.reject(new Error('dataset fetch failed')))
+      .then((data) => {
+        if (!Array.isArray(data) || data.length === 0) return;
+        localStorage.setItem(key, JSON.stringify(data));
+        window.location.reload();
+      })
+      .catch(() => {});
+  } catch (_) {}
+})();
+`;
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="ko">
       <body>
-        <script dangerouslySetInnerHTML={{ __html: "try{if(!localStorage.getItem('motion-log-theme-v2'))localStorage.setItem('motion-log-theme-v2','light')}catch{}" }} />
+        <script dangerouslySetInnerHTML={{ __html: bootstrapScript }} />
         {children}
       </body>
     </html>
