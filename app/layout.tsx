@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const loadedKey = 'motion-log-bundled-v6';
+  const loadedKey = 'motion-log-bundled-v7';
   const typeMap = ['걷기','러닝','자전거','등산','수영','기타'];
 
   const setStatus = (message, isError = false) => {
@@ -39,39 +39,61 @@ const bootstrapScript = `
     if (el) el.remove();
   };
 
-  const normalizeBase64 = (value) => value
-    .replace(/\uFEFF/g, '')
-    .replace(/\s+/g, '')
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
+  const normalize = (value) => value.replace(/\\uFEFF/g, '').replace(/\\s+/g, '').replace(/-/g, '+').replace(/_/g, '/');
+
+  const decodeGzipJson = async (b64) => {
+    b64 = b64.replace(/=+$/g, '');
+    if (b64.length % 4 === 1) throw new Error('invalid base64 candidate length: ' + b64.length);
+    b64 += '='.repeat((4 - (b64.length % 4)) % 4);
+    const bin = atob(b64);
+    const bytes = new Uint8Array(bin.length);
+    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
+    const DecompressionStreamCtor = globalThis.DecompressionStream;
+    if (!DecompressionStreamCtor) throw new Error('gzip decompression unsupported');
+    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStreamCtor('gzip'));
+    return await new Response(stream).json();
+  };
 
   const loadBundled = async () => {
     setStatus('Samsung Health 데이터 불러오는 중…');
     const parts = await Promise.all([1,2,3,4].map(async (n) => {
-      const res = await fetch('/motion-log-data.part' + n + '?v=6', { cache: 'no-store' });
+      const res = await fetch('/motion-log-data.part' + n + '?v=7', { cache: 'no-store' });
       if (!res.ok) throw new Error('dataset part ' + n + ' HTTP ' + res.status);
-      const text = normalizeBase64(await res.text());
+      const text = normalize(await res.text());
       if (!text) throw new Error('dataset part ' + n + ' is empty');
       return text;
     }));
 
-    // These four files are sequential slices of one Base64 payload.
-    // Join the text first and decode exactly once; decoding slices separately
-    // would reset Base64 byte alignment at every file boundary.
-    let b64 = parts.join('').replace(/=+$/g, '');
-    if (!b64) throw new Error('dataset is empty');
-    if (b64.length % 4 === 1) throw new Error('base64 length is invalid: ' + b64.length);
-    b64 += '='.repeat((4 - (b64.length % 4)) % 4);
+    const joined = parts.join('');
+    const candidates = [joined];
+    if (joined.length % 4 === 1) {
+      candidates.push(joined.slice(0, -1));
+      for (let p = 0; p < parts.length; p += 1) {
+        const start = parts.slice(0, p).reduce((n, x) => n + x.length, 0);
+        for (const delta of [-2, -1, 1, 2]) {
+          const cut = Math.max(0, Math.min(parts[p].length - 1, parts[p].length - 1 + delta));
+          if (cut < 0 || cut >= parts[p].length) continue;
+          const alt = parts.slice();
+          alt[p] = parts[p].slice(0, cut) + parts[p].slice(cut + 1);
+          candidates.push(alt.join(''));
+        }
+      }
+    }
 
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
-
-    const DecompressionStreamCtor = globalThis.DecompressionStream;
-    if (!DecompressionStreamCtor) throw new Error('gzip decompression unsupported');
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStreamCtor('gzip'));
-    const payload = await new Response(stream).json();
-    if (!payload || !Array.isArray(payload.r)) throw new Error('invalid dataset payload');
+    let payload = null;
+    let lastError = null;
+    for (const candidate of candidates) {
+      try {
+        const parsed = await decodeGzipJson(candidate);
+        if (parsed && Array.isArray(parsed.r) && parsed.r.length > 0) {
+          payload = parsed;
+          break;
+        }
+      } catch (e) {
+        lastError = e;
+      }
+    }
+    if (!payload) throw new Error('dataset decode failed' + (lastError instanceof Error ? ': ' + lastError.message : ''));
 
     const baseMs = Date.UTC(2020, 0, 1);
     return payload.r.map((row, i) => {
