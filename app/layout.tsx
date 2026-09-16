@@ -17,8 +17,7 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const loadedKey = 'motion-log-bundled-v9';
-  const typeMap = ['걷기','러닝','자전거','등산','수영','기타'];
+  const loadedKey = 'motion-log-direct-test-v1';
 
   const setStatus = (message, isError = false) => {
     let el = document.getElementById('motion-log-loader-status');
@@ -39,73 +38,17 @@ const bootstrapScript = `
     if (el) el.remove();
   };
 
-  const normalize = (value) => value
-    .replace(/\\uFEFF/g, '')
-    .replace(/\\s+/g, '')
-    .replace(/-/g, '+')
-    .replace(/_/g, '/');
-
-  const decodeGzipJson = async (text) => {
-    let b64 = normalize(text).replace(/=+$/g, '');
-    if (b64.length % 4 === 1) throw new Error('invalid base64 chunk length: ' + b64.length);
-    b64 += '='.repeat((4 - (b64.length % 4)) % 4);
-    const bin = atob(b64);
-    const bytes = new Uint8Array(bin.length);
-    for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
-    if (bytes.length < 2 || bytes[0] !== 0x1f || bytes[1] !== 0x8b) throw new Error('chunk is not gzip data');
-    const DecompressionStreamCtor = globalThis.DecompressionStream;
-    if (!DecompressionStreamCtor) throw new Error('gzip decompression unsupported');
-    const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStreamCtor('gzip'));
-    return await new Response(stream).json();
-  };
-
-  const normalizeRecords = (parsed, chunkNumber) => {
-    if (Array.isArray(parsed)) return parsed;
-    if (parsed && Array.isArray(parsed.r)) {
-      const baseMs = Date.UTC(2020, 0, 1);
-      return parsed.r.map((row, i) => {
-        const date = new Date(baseMs + Number(row[0] || 0) * 86400000).toISOString().slice(0, 10);
-        const n = (value) => Number(value) ? Number(value) / 10 : undefined;
-        return {
-          id: 'sh-' + chunkNumber + '-' + i,
-          date,
-          type: typeMap[Number(row[1])] || '기타',
-          distanceKm: Number(row[2] || 0) / 1000,
-          durationSec: Number(row[3] || 0),
-          calories: n(row[4]),
-          avgPaceSecPerKm: n(row[5]),
-          avgSpeedKmh: n(row[6]),
-          bestSpeedKmh: n(row[7]),
-          avgHeartRate: n(row[8]),
-          avgCadence: n(row[9]),
-          vo2max: n(row[10]),
-          elevationGainM: n(row[11]),
-          elevationLossM: n(row[12]),
-          source: 'Samsung Health',
-        };
-      });
-    }
-    throw new Error('chunk ' + chunkNumber + ' JSON format is invalid');
-  };
-
-  const loadBundled = async () => {
-    setStatus('Samsung Health 데이터 불러오는 중…');
-    const parts = await Promise.all([1,2,3,4].map(async (n) => {
-      const res = await fetch('/motion-log-data.part' + n + '?v=9', { cache: 'no-store' });
-      if (!res.ok) throw new Error('dataset part ' + n + ' HTTP ' + res.status);
-      const text = await res.text();
-      if (!text.trim()) throw new Error('dataset part ' + n + ' is empty');
-      return text;
+  const loadDirect = async () => {
+    setStatus('최근 60일 삼성 Health 데이터 불러오는 중…');
+    const res = await fetch('/motion-log-data-test.json?v=1', { cache: 'no-store' });
+    if (!res.ok) throw new Error('test dataset HTTP ' + res.status);
+    const data = await res.json();
+    if (!Array.isArray(data) || data.length === 0) throw new Error('test dataset is empty');
+    return data.map((row, i) => ({
+      ...row,
+      id: row.id || ('sh-test-' + i),
+      source: row.source || 'Samsung Health',
     }));
-
-    const all = [];
-    for (let i = 0; i < parts.length; i += 1) {
-      const parsed = await decodeGzipJson(parts[i]);
-      const records = normalizeRecords(parsed, i + 1);
-      all.push(...records);
-    }
-    if (!all.length) throw new Error('dataset contains 0 records');
-    return all;
   };
 
   (async () => {
@@ -116,15 +59,15 @@ const bootstrapScript = `
         clearStatus();
         return;
       }
-      const data = await loadBundled();
+      const data = await loadDirect();
       localStorage.setItem(key, JSON.stringify(data));
       localStorage.setItem(loadedKey, '1');
       setStatus(data.length.toLocaleString('ko-KR') + '개 기록을 불러왔습니다.');
       window.location.reload();
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      console.error('[Motion Log] Samsung Health import failed:', error);
-      setStatus('Samsung Health 데이터 불러오기 실패: ' + message, true);
+      console.error('[Motion Log] direct Samsung Health test import failed:', error);
+      setStatus('Samsung Health 테스트 데이터 불러오기 실패: ' + message, true);
     }
   })();
 })();
