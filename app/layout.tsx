@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const loadedKey = 'motion-log-bundled-v4';
+  const loadedKey = 'motion-log-bundled-v5';
   const typeMap = ['걷기','러닝','자전거','등산','수영','기타'];
 
   const setStatus = (message, isError = false) => {
@@ -40,55 +40,30 @@ const bootstrapScript = `
   };
 
   const normalizeBase64 = (value) => value
-    .replace(/\uFEFF/g, '')
-    .replace(/\s+/g, '')
+    .replace(/\\uFEFF/g, '')
+    .replace(/\\s+/g, '')
     .replace(/-/g, '+')
     .replace(/_/g, '/');
 
-  const decodeChunk = (value) => {
-    let b64 = normalizeBase64(value).replace(/=+$/g, '');
-    if (b64.length % 4 === 1) throw new Error('base64 chunk length is invalid: ' + b64.length);
+  const loadBundled = async () => {
+    setStatus('Samsung Health 데이터 불러오는 중…');
+    const parts = await Promise.all([1,2,3,4].map(async (n) => {
+      const res = await fetch('/motion-log-data.part' + n + '?v=5', { cache: 'no-store' });
+      if (!res.ok) throw new Error('dataset part ' + n + ' HTTP ' + res.status);
+      return normalizeBase64(await res.text());
+    }));
+
+    let b64 = parts.join('').replace(/=+$/g, '');
+    if (!b64) throw new Error('dataset is empty');
+    if (b64.length % 4 === 1) throw new Error('base64 length is invalid: ' + b64.length);
     b64 += '='.repeat((4 - (b64.length % 4)) % 4);
+
     const bin = atob(b64);
     const bytes = new Uint8Array(bin.length);
     for (let i = 0; i < bin.length; i += 1) bytes[i] = bin.charCodeAt(i);
-    return bytes;
-  };
 
-  const concatBytes = (chunks) => {
-    const total = chunks.reduce((sum, chunk) => sum + chunk.length, 0);
-    const out = new Uint8Array(total);
-    let offset = 0;
-    for (const chunk of chunks) {
-      out.set(chunk, offset);
-      offset += chunk.length;
-    }
-    return out;
-  };
-
-  const decodeBase64 = (parts) => {
-    const cleaned = parts.map(normalizeBase64);
-    const independentlyEncoded = cleaned.some((part) => /=+$/.test(part));
-    if (independentlyEncoded) return concatBytes(cleaned.map(decodeChunk));
-
-    let b64 = cleaned.join('').replace(/=+$/g, '');
-    if (b64.length % 4 === 1) throw new Error('base64 length is invalid: ' + b64.length);
-    b64 += '='.repeat((4 - (b64.length % 4)) % 4);
-    return decodeChunk(b64);
-  };
-
-  const loadBundled = async () => {
-    setStatus('Samsung Health 데이터 불러오는 중…');
-    const parts = await Promise.all([1,2,3,4,5].map(async (n) => {
-      const res = await fetch('/motion-log-data.part' + n + '?v=4', { cache: 'no-store' });
-      if (!res.ok) throw new Error('dataset part ' + n + ' HTTP ' + res.status);
-      return res.text();
-    }));
-
-    const bytes = decodeBase64(parts);
     const DecompressionStreamCtor = globalThis.DecompressionStream;
     if (!DecompressionStreamCtor) throw new Error('gzip decompression unsupported');
-
     const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStreamCtor('gzip'));
     const payload = await new Response(stream).json();
     if (!payload || !Array.isArray(payload.r)) throw new Error('invalid dataset payload');
@@ -125,10 +100,7 @@ const bootstrapScript = `
         clearStatus();
         return;
       }
-
       const data = await loadBundled();
-      if (!data.length) throw new Error('dataset contains 0 records');
-
       localStorage.setItem(key, JSON.stringify(data));
       localStorage.setItem(loadedKey, '1');
       setStatus(data.length.toLocaleString('ko-KR') + '개 기록을 불러왔습니다.');
