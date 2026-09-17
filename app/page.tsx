@@ -11,25 +11,102 @@ type Activity = {
   note?:string; source?:string; deletedAt?:string;
 };
 type Tab='home'|'records'|'analysis'|'trash'|'more';
-
 type SnapshotType = '러닝'|'등산';
+type TrendMetric = 'distance'|'pace'|'heartRate'|'cadence'|'speed'|'duration'|'calories'|'elevationGain'|'elevationLoss';
+type ChartPoint = {date:string; value:number};
+
 const STORAGE='motion-log-records-v4';
 const THEME='motion-log-theme-v4';
-const DATA_URL='/motion-log-data-test.json?v=7';
+const DATA_URL='/motion-log-data-test.json?v=8';
 const TYPES:ActivityType[]=['러닝','걷기','자전거','등산','수영','기타'];
 const SNAPSHOT_TYPES:SnapshotType[]=['러닝','등산'];
 const fmtDate=(d:string)=>{const x=new Date(`${d}T00:00:00`);return `${x.getMonth()+1}월 ${x.getDate()}일`};
 const fmtFullDate=(d:string)=>{const x=new Date(`${d}T00:00:00`);return `${x.getFullYear()}.${String(x.getMonth()+1).padStart(2,'0')}.${String(x.getDate()).padStart(2,'0')}`};
+const fmtShortDate=(d:string)=>{const x=new Date(`${d}T00:00:00`);return `${x.getMonth()+1}/${x.getDate()}`};
 const fmtDur=(s=0)=>{const n=Math.max(0,Math.round(s)),h=Math.floor(n/3600),m=Math.floor(n%3600/60),r=n%60;return h?`${h}시간 ${m}분`:`${m}분 ${String(r).padStart(2,'0')}초`};
 const fmtPace=(s?:number)=>{if(!Number.isFinite(s)||!s||s<0)return '—';const n=Math.max(0,Math.round(s));return `${Math.floor(n/60)}'${String(n%60).padStart(2,'0')}\"/km`};
 const avg=(v:number[])=>{const a=v.filter(Number.isFinite);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0};
 const sum=(a:Activity[],k:'distanceKm'|'durationSec'|'calories')=>a.reduce((s,x)=>s+(Number(x[k])||0),0);
 const sumField=(a:Activity[],get:(x:Activity)=>number)=>a.reduce((s,x)=>s+(Number(get(x))||0),0);
 const dayKey=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+const addDays=(d:string,n:number)=>{const x=new Date(`${d}T00:00:00`);x.setDate(x.getDate()+n);return dayKey(x)};
 const validType=(v:unknown):v is ActivityType=>TYPES.includes(v as ActivityType);
 const normalizeRecord=(row:any,i:number):Activity=>{if(!row||typeof row!=='object')throw new Error(`기록 ${i+1} 형식 오류`);if(!row.id||!row.date||!validType(row.type))throw new Error(`기록 ${i+1} 필수값 오류`);const distance=Number(row.distanceKm),duration=Number(row.durationSec);if(!Number.isFinite(distance)||distance<0||!Number.isFinite(duration)||duration<0)throw new Error(`기록 ${i+1} 거리/시간 오류`);return {...row,id:String(row.id),date:String(row.date),type:row.type,distanceKm:distance,durationSec:duration,source:row.source||'Samsung Health'};};
+
+const TREND_OPTIONS:Record<'전체'|SnapshotType,{metric:TrendMetric,label:string}[]>= {
+ '전체':[
+  {metric:'distance',label:'거리'},
+  {metric:'duration',label:'시간'},
+  {metric:'heartRate',label:'심박'},
+  {metric:'calories',label:'칼로리'}
+ ],
+ '러닝':[
+  {metric:'distance',label:'거리'},
+  {metric:'pace',label:'페이스'},
+  {metric:'heartRate',label:'심박'},
+  {metric:'cadence',label:'케이던스'},
+  {metric:'speed',label:'평균 속도'},
+  {metric:'calories',label:'칼로리'}
+ ],
+ '등산':[
+  {metric:'distance',label:'거리'},
+  {metric:'elevationGain',label:'상승고도'},
+  {metric:'elevationLoss',label:'하강고도'},
+  {metric:'heartRate',label:'심박'},
+  {metric:'duration',label:'시간'},
+  {metric:'calories',label:'칼로리'}
+ ]
+};
+
+const metricValue=(a:Activity,m:TrendMetric)=>{
+ if(m==='distance')return a.distanceKm;
+ if(m==='pace')return a.avgPaceSecPerKm;
+ if(m==='heartRate')return a.avgHeartRate;
+ if(m==='cadence')return a.avgCadence;
+ if(m==='speed')return a.avgSpeedKmh;
+ if(m==='duration')return a.durationSec/60;
+ if(m==='calories')return a.calories;
+ if(m==='elevationGain')return a.elevationGainM;
+ return a.elevationLossM;
+};
+
+const aggregateTrend=(activities:Activity[],metric:TrendMetric):ChartPoint[]=>{
+ const grouped=new Map<string,number[]>();
+ activities.forEach(a=>{const value=metricValue(a,metric);if(!Number.isFinite(value))return;const list=grouped.get(a.date)||[];list.push(Number(value));grouped.set(a.date,list)});
+ return [...grouped.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([date,values])=>({date,value:['distance','duration','calories','elevationGain','elevationLoss'].includes(metric)?values.reduce((s,v)=>s+v,0):values.reduce((s,v)=>s+v,0)/values.length}));
+};
+
+const formatTrendValue=(metric:TrendMetric,value:number)=>{
+ if(metric==='pace')return fmtPace(value);
+ if(metric==='distance')return `${value.toFixed(2)} km`;
+ if(metric==='duration')return `${Math.round(value)}분`;
+ if(metric==='heartRate')return `${Math.round(value)} bpm`;
+ if(metric==='cadence')return `${Math.round(value)} spm`;
+ if(metric==='speed')return `${value.toFixed(1)} km/h`;
+ if(metric==='calories')return `${Math.round(value)} kcal`;
+ return `${Math.round(value)} m`;
+};
+
 function Metric({label,value,unit}:{label:string;value:string|number;unit?:string}){return <div className="metric"><span>{label}</span><strong>{value}{unit&&<small>{unit}</small>}</strong></div>}
-function RecordCard({a,onOpen,onTrash}:{a:Activity;onOpen:()=>void;onTrash:()=>void}){return <article className="record-card" onClick={onOpen}><div><div className="record-date"><b>{fmtDate(a.date)}</b><span>{a.type}</span></div><div className="record-main"><b>{a.distanceKm.toFixed(2)}<small> km</small></b><span>{fmtDur(a.durationSec)} · {fmtPace(a.avgPaceSecPerKm)}</span></div></div><div className="record-tags">{a.avgHeartRate&&<span>♥ {Math.round(a.avgHeartRate)}</span>}{a.avgCadence&&<span>↟ {Math.round(a.avgCadence)}</span>}{a.calories&&<span>{Math.round(a.calories)} kcal</span>}{a.vo2max&&<span>VO₂ {a.vo2max}</span>}</div><button className="icon-button" aria-label="휴지통 이동" onClick={e=>{e.stopPropagation();onTrash()}}>×</button></article>}
+function RecordCard({a,onOpen,onTrash}:{a:Activity;onOpen:()=>void;onTrash:()=>void}){return <article className="record-card" onClick={onOpen}><div><div className="record-date"><b>{fmtDate(a.date)}</b><span>{a.type}</span></div><div className="record-main"><b>{a.distanceKm.toFixed(2)}<small> km</small></b><span>{fmtDur(a.durationSec)} · {fmtPace(a.avgPaceSecPerKm)}</span></div></div><div className="record-tags">{a.avgHeartRate&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>심박 {Math.round(a.avgHeartRate)} bpm</span>}{a.avgCadence&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>케이던스 {Math.round(a.avgCadence)} spm</span>}{a.calories&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>{Math.round(a.calories)} kcal</span>}{a.vo2max&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>VO₂ {a.vo2max}</span>}</div><button className="icon-button" aria-label="휴지통 이동" onClick={e=>{e.stopPropagation();onTrash()}}>×</button></article>}
+
+function TrendChart({points,metric}:{points:ChartPoint[];metric:TrendMetric}){
+ if(!points.length)return <div className="empty" style={{marginTop:10,padding:28}}>선택한 기간에 표시할 데이터가 없습니다.</div>;
+ const width=760,height=290,left=46,right=18,top=22,bottom=38,innerW=width-left-right,innerH=height-top-bottom;
+ const values=points.map(p=>p.value);const rawMin=Math.min(...values),rawMax=Math.max(...values);const pad=rawMin===rawMax?Math.max(rawMin*0.08,1):Math.max((rawMax-rawMin)*0.12,metric==='pace'?5:0.5);const min=rawMin-pad,max=rawMax+pad;
+ const x=(i:number)=>left+(points.length===1?innerW/2:(i/(points.length-1))*innerW);const y=(v:number)=>top+(1-(v-min)/(max-min))*innerH;
+ const line=points.map((p,i)=>`${i?'L':'M'} ${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join(' ');
+ const labelIndexes=points.length<=5?points.map((_,i)=>i):[0,Math.floor((points.length-1)*.25),Math.floor((points.length-1)*.5),Math.floor((points.length-1)*.75),points.length-1];
+ const grid=[0,.25,.5,.75,1];
+ return <div style={{marginTop:12}}><div style={{display:'flex',justifyContent:'space-between',alignItems:'baseline',marginBottom:5}}><span style={{fontSize:9,color:'var(--muted)'}}>운동일 기준 추이</span><span style={{fontSize:10,color:'var(--text)',fontWeight:700}}>{formatTrendValue(metric,points[points.length-1].value)}</span></div><div style={{overflow:'hidden',borderRadius:12,background:'var(--surface2)',border:'1px solid var(--line)'}}><svg viewBox={`0 0 ${width} ${height}`} style={{width:'100%',height:'auto',display:'block'}} role="img" aria-label={`${metric} 추이 그래프`}>
+ {grid.map((g,i)=>{const yy=top+g*innerH;const value=max-g*(max-min);return <g key={i}><line x1={left} y1={yy} x2={width-right} y2={yy} stroke="var(--line)" strokeWidth="1"/><text x={left-8} y={yy+3} textAnchor="end" fontSize="10" fill="var(--muted)">{formatTrendValue(metric,value).replace(/ \/km| km|분| bpm| spm| km\/h| kcal| m/g,'')}</text></g>})}
+ <path d={line} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+ {points.map((p,i)=><circle key={p.date} cx={x(i)} cy={y(p.value)} r={points.length>80?1.8:3.5} fill="var(--accent)"/>) }
+ {labelIndexes.map(i=><text key={i} x={x(i)} y={height-13} textAnchor={i===0?'start':i===points.length-1?'end':'middle'} fontSize="10" fill="var(--muted)">{fmtShortDate(points[i].date)}</text>)}
+ </svg></div></div>;
+}
+
+function ComparisonItem({label,current,previous,formatter}:{label:string;current:number;previous:number;formatter:(v:number)=>string}){const delta=current-previous;return <div style={{background:'var(--surface2)',borderRadius:10,padding:'10px 11px',border:'1px solid var(--line)'}}><span style={{display:'block',fontSize:8,color:'var(--muted)'}}>{label}</span><b style={{display:'block',fontSize:14,marginTop:4,color:'var(--text)'}}>{formatter(current)}</b><span style={{display:'block',fontSize:8,color:'var(--muted)',marginTop:3}}>이전 {formatter(previous)} · 변화 {delta>0?'+':''}{formatter(delta)}</span></div>}
 
 export default function Home(){
  const [tab,setTab]=useState<Tab>('home');
@@ -50,6 +127,7 @@ export default function Home(){
  const [importStatus,setImportStatus]=useState('');
  const [calendarDate,setCalendarDate]=useState('');
  const [snapshotType,setSnapshotType]=useState<SnapshotType>('러닝');
+ const [trendMetric,setTrendMetric]=useState<TrendMetric>('distance');
 
  const mergeRecords=(local:Activity[],remote:Activity[])=>{const localById=new Map(local.map(a=>[a.id,a]));const merged=remote.map(a=>{const l=localById.get(a.id);return l?{...a,...(l.note?{note:l.note}:{}),...(l.deletedAt?{deletedAt:l.deletedAt}:{} )}:a});const remoteIds=new Set(remote.map(a=>a.id));for(const a of local)if(!remoteIds.has(a.id))merged.push(a);return merged};
  const fetchRemote=async()=>{const res=await fetch(DATA_URL,{cache:'no-store'});if(!res.ok)throw new Error(`HTTP ${res.status}`);const raw=await res.json();if(!Array.isArray(raw)||!raw.length)throw new Error('서버 데이터가 비어 있습니다.');return raw.map(normalizeRecord)};
@@ -90,14 +168,19 @@ export default function Home(){
  const snapshotLongest=snapshotActivities.slice().sort((a,b)=>b.distanceKm-a.distanceKm)[0];
  const snapshotBestPace=snapshotType==='러닝'?fastestRun:undefined;
  const snapshotBestSpeed=snapshotType==='러닝'?bestSpeedRun:undefined;
- const snapshotAvgPace=avg(snapshotActivities.map(a=>a.avgPaceSecPerKm||NaN));
- const snapshotAvgSpeed=avg(snapshotActivities.map(a=>a.avgSpeedKmh||NaN));
  const snapshotAvgHr=avg(snapshotActivities.map(a=>a.avgHeartRate||NaN));
  const snapshotAvgCadence=avg(snapshotActivities.map(a=>a.avgCadence||NaN));
  const snapshotElevationGain=sumField(snapshotActivities,a=>a.elevationGainM||0);
  const snapshotElevationLoss=sumField(snapshotActivities,a=>a.elevationLossM||0);
- const snapshotSteps=sumField(snapshotActivities,a=>a.steps||0);
  const snapshotCalories=sum(snapshotActivities,'calories');
+ const currentAnalysisStart=useMemo(()=>customMode&&customStart&&customEnd&&customStart<=customEnd?customStart:since,[customMode,customStart,customEnd,since]);
+ const currentAnalysisEnd=useMemo(()=>customMode&&customStart&&customEnd&&customStart<=customEnd?customEnd:today,[customMode,customStart,customEnd,today]);
+ const rangeDays=Math.max(1,Math.round((new Date(`${currentAnalysisEnd}T00:00:00`).getTime()-new Date(`${currentAnalysisStart}T00:00:00`).getTime())/86400000)+1);
+ const previousAnalysisEnd=addDays(currentAnalysisStart,-1);
+ const previousAnalysisStart=addDays(previousAnalysisEnd,-(rangeDays-1));
+ const previousAnalysisScoped=active.filter(a=>{const typeOk=analysisType==='전체'||a.type===analysisType;return typeOk&&a.date>=previousAnalysisStart&&a.date<=previousAnalysisEnd});
+ const trendPoints=useMemo(()=>aggregateTrend(analysisScoped,trendMetric),[analysisScoped,trendMetric]);
+ const trendOptions=TREND_OPTIONS[analysisType==='러닝'||analysisType==='등산'?analysisType:'전체'];
  const applyConfirm=()=>{if(!confirm)return;setActs(prev=>confirm.kind==='delete'?prev.filter(a=>a.id!==confirm.id):prev.map(a=>a.id===confirm.id?(confirm.kind==='trash'?{...a,deletedAt:new Date().toISOString()}:{...a,deletedAt:undefined}):a));setSelected(null);setConfirm(null)};
  const exportJson=()=>{const b=new Blob([JSON.stringify(acts,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`motion-log-backup-${today}.json`;a.click();URL.revokeObjectURL(u)};
  const exportCsv=()=>{const cols=['id','date','type','distanceKm','durationSec','calories','avgPaceSecPerKm','bestPaceSecPerKm','avgSpeedKmh','bestSpeedKmh','avgHeartRate','maxHeartRate','avgCadence','maxCadence','vo2max','elevationGainM','elevationLossM','steps','note','source'];const esc=(v:any)=>`\"${String(v??'').replaceAll('\\"','\\"\\"')}\"`;const body=[cols.join(','),...active.map(a=>cols.map(c=>esc((a as any)[c])).join(','))].join('\n');const b=new Blob(['\ufeff'+body],{type:'text/csv;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`motion-log-${today}.csv`;a.click();URL.revokeObjectURL(u)};
@@ -115,7 +198,14 @@ export default function Home(){
     <div className="section-head"><div><div className="eyebrow">RECENT</div><h3>최근 운동</h3></div><button className="text-btn" onClick={()=>setTab('records')}>전체 보기 →</button></div><div className="records-list">{active.slice(0,8).map(a=><RecordCard key={a.id} a={a} onOpen={()=>setSelected(a)} onTrash={()=>setConfirm({kind:'trash',id:a.id})}/>)}</div>
    </>}
    {tab==='records'&&<><div className="section-head"><div><div className="eyebrow">ARCHIVE</div><h3>운동 기록</h3></div><span className="count-pill">총 {active.length.toLocaleString()}회 · {allDist.toFixed(1)} km</span></div><div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,marginBottom:10}}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="날짜·운동종류·메모 검색" style={{width:'100%',padding:'11px 12px',border:'1px solid var(--line)',borderRadius:11,background:'var(--surface)',color:'var(--text)',outline:'none'}}/><select value={sort} onChange={e=>setSort(e.target.value as 'latest'|'distance'|'pace')} style={{padding:'0 10px',border:'1px solid var(--line)',borderRadius:11,background:'var(--surface)',color:'var(--text)'}}><option value="latest">최신순</option><option value="distance">거리순</option><option value="pace">페이스순</option></select></div><div className="period-tabs">{(['전체',...TYPES] as const).map(t=><button key={t} className={typeFilter===t?'active':''} onClick={()=>setTypeFilter(t)}>{t}</button>)}</div>{calendarDate&&<div className="trash-note">선택 날짜: <b>{fmtFullDate(calendarDate)}</b> · 검색창에서 날짜를 지우면 전체 기록을 다시 볼 수 있습니다.</div>}<div className="records-list">{filtered.map(a=><RecordCard key={a.id} a={a} onOpen={()=>setSelected(a)} onTrash={()=>setConfirm({kind:'trash',id:a.id})}/>)}</div>{!filtered.length&&<div className="empty">조건에 맞는 기록이 없습니다.</div>}</>}
-   {tab==='analysis'&&<><div className="period-tabs">{([7,30,90,365] as const).map(p=><button key={p} className={!customMode&&period===p?'active':''} onClick={()=>{setCustomMode(false);setPeriod(p)}}>{p===365?'1년':`${p}일`}</button>)}<button className={customMode?'active':''} onClick={()=>setCustomMode(true)}>기간 직접 지정</button></div><div className="panel" style={{marginBottom:12}}><div className="section-head" style={{marginTop:0}}><div><div className="eyebrow">ANALYSIS FILTER</div><h3>분석 대상</h3></div><select value={analysisType} onChange={e=>setAnalysisType(e.target.value as '전체'|ActivityType)} style={{padding:'9px 10px',border:'1px solid var(--line)',borderRadius:10,background:'var(--surface)',color:'var(--text)'}}><option value="전체">전체 종목</option>{TYPES.map(t=><option key={t} value={t}>{t}</option>)}</select></div>{customMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:10}}><label style={{fontSize:9,color:'var(--muted)'}}>시작일<input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{display:'block',width:'100%',marginTop:5,padding:'10px',border:'1px solid var(--line)',borderRadius:10,background:'var(--surface)',color:'var(--text)'}}/></label><label style={{fontSize:9,color:'var(--muted)'}}>종료일<input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{display:'block',width:'100%',marginTop:5,padding:'10px',border:'1px solid var(--line)',borderRadius:10,background:'var(--surface)',color:'var(--text)'}}/></label></div>}{customMode&&customStart&&customEnd&&customStart>customEnd&&<div className="detail-note">시작일이 종료일보다 늦습니다.</div>}</div><section className="stats-grid"><Metric label="기간 운동" value={analysisScoped.length} unit="회"/><Metric label="기간 거리" value={sum(analysisScoped,'distanceKm').toFixed(1)} unit="km"/><Metric label="기간 시간" value={fmtDur(sum(analysisScoped,'durationSec'))}/><Metric label="평균 심박" value={avg(analysisScoped.map(a=>a.avgHeartRate||NaN))||'—'} unit={avg(analysisScoped.map(a=>a.avgHeartRate||NaN))?'bpm':undefined}/><Metric label="평균 케이던스" value={avg(analysisScoped.map(a=>a.avgCadence||NaN))||'—'} unit={avg(analysisScoped.map(a=>a.avgCadence||NaN))?'spm':undefined}/><Metric label="칼로리" value={Math.round(sum(analysisScoped,'calories')).toLocaleString()} unit="kcal"/></section><section className="analysis-grid"><div className="panel"><div className="eyebrow">ACTIVITY MIX</div><h3>종목별 기록</h3><div className="mini-grid" style={{marginTop:12}}>{TYPES.map(t=><div key={t}><span>{t}</span><b>{typeCounts[t].n}회 · {typeCounts[t].d.toFixed(1)} km</b></div>)}</div></div><div className="panel"><div className="eyebrow">RECENT RUNNING</div><h3>기간 내 러닝</h3><div className="bar-list" style={{marginTop:12}}>{analysisScoped.filter(a=>a.type==='러닝').slice(0,12).map(a=><div key={a.id}><span>{fmtDate(a.date)}</span><i><em style={{width:`${Math.max(6,Math.min(100,(a.distanceKm/10)*100))}%`}}/></i><b>{fmtPace(a.avgPaceSecPerKm)}</b></div>)}</div>{!analysisScoped.filter(a=>a.type==='러닝').length&&<div className="empty" style={{marginTop:10,padding:20}}>선택 기간의 러닝 기록이 없습니다.</div>}</div></section></>}
+   {tab==='analysis'&&<>
+    <div className="period-tabs">{([7,30,90,365] as const).map(p=><button key={p} className={!customMode&&period===p?'active':''} onClick={()=>{setCustomMode(false);setPeriod(p)}}>{p===365?'1년':`${p}일`}</button>)}<button className={customMode?'active':''} onClick={()=>setCustomMode(true)}>기간 직접 지정</button></div>
+    <div className="panel" style={{marginBottom:12}}><div className="section-head" style={{marginTop:0}}><div><div className="eyebrow">ANALYSIS FILTER</div><h3>분석 대상</h3></div><select value={analysisType} onChange={e=>{const v=e.target.value as '전체'|ActivityType;setAnalysisType(v);setTrendMetric('distance')}} style={{padding:'9px 10px',border:'1px solid var(--line)',borderRadius:10,background:'var(--surface)',color:'var(--text)'}}><option value="전체">전체 종목</option><option value="러닝">러닝</option><option value="등산">등산</option></select></div>{customMode&&<div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginTop:10}}><label style={{fontSize:9,color:'var(--muted)'}}>시작일<input type="date" value={customStart} onChange={e=>setCustomStart(e.target.value)} style={{display:'block',width:'100%',marginTop:5,padding:'10px',border:'1px solid var(--line)',borderRadius:10,background:'var(--surface)',color:'var(--text)'}}/></label><label style={{fontSize:9,color:'var(--muted)'}}>종료일<input type="date" value={customEnd} onChange={e=>setCustomEnd(e.target.value)} style={{display:'block',width:'100%',marginTop:5,padding:'10px',border:'1px solid var(--line)',borderRadius:10,background:'var(--surface)',color:'var(--text)'}}/></label></div>}{customMode&&customStart&&customEnd&&customStart>customEnd&&<div className="detail-note">시작일이 종료일보다 늦습니다.</div>}</div>
+    <section className="stats-grid"><Metric label="기간 운동" value={analysisScoped.length} unit="회"/><Metric label="기간 거리" value={sum(analysisScoped,'distanceKm').toFixed(1)} unit="km"/><Metric label="기간 시간" value={fmtDur(sum(analysisScoped,'durationSec'))}/><Metric label="평균 심박" value={avg(analysisScoped.map(a=>a.avgHeartRate||NaN))||'—'} unit={avg(analysisScoped.map(a=>a.avgHeartRate||NaN))?'bpm':undefined}/><Metric label="평균 케이던스" value={avg(analysisScoped.map(a=>a.avgCadence||NaN))||'—'} unit={avg(analysisScoped.map(a=>a.avgCadence||NaN))?'spm':undefined}/><Metric label="칼로리" value={Math.round(sum(analysisScoped,'calories')).toLocaleString()} unit="kcal"/></section>
+    <section className="panel" style={{marginBottom:12}}><div className="section-head" style={{marginTop:0}}><div><div className="eyebrow">TREND CHART</div><h3>운동 추세</h3><span style={{display:'block',fontSize:9,color:'var(--muted)',marginTop:4}}>{fmtFullDate(currentAnalysisStart)} — {fmtFullDate(currentAnalysisEnd)} · 운동일 기준</span></div><div className="period-tabs" style={{marginBottom:0,justifyContent:'flex-end',flexWrap:'wrap'}}>{trendOptions.map(o=><button key={o.metric} className={trendMetric===o.metric?'active':''} onClick={()=>setTrendMetric(o.metric)}>{o.label}</button>)}</div></div><TrendChart points={trendPoints} metric={trendMetric}/></section>
+    <section className="panel" style={{marginBottom:12}}><div className="eyebrow">PERIOD COMPARISON</div><h3>이전 기간과 비교</h3><span style={{display:'block',fontSize:9,color:'var(--muted)',marginTop:4}}>현재 {fmtFullDate(currentAnalysisStart)} — {fmtFullDate(currentAnalysisEnd)} · 이전 {fmtFullDate(previousAnalysisStart)} — {fmtFullDate(previousAnalysisEnd)}</span><div className="mini-grid" style={{marginTop:12}}><ComparisonItem label="운동 횟수" current={analysisScoped.length} previous={previousAnalysisScoped.length} formatter={v=>`${v>0?v:0}회`}/><ComparisonItem label="거리" current={sum(analysisScoped,'distanceKm')} previous={sum(previousAnalysisScoped,'distanceKm')} formatter={v=>`${v.toFixed(1)} km`}/><ComparisonItem label="시간" current={sum(analysisScoped,'durationSec')/60} previous={sum(previousAnalysisScoped,'durationSec')/60} formatter={v=>`${Math.round(v)}분`}/><ComparisonItem label="평균 심박" current={avg(analysisScoped.map(a=>a.avgHeartRate||NaN))} previous={avg(previousAnalysisScoped.map(a=>a.avgHeartRate||NaN))} formatter={v=>`${v?Math.round(v):0} bpm`}/>{analysisType==='러닝'&&<ComparisonItem label="평균 케이던스" current={avg(analysisScoped.map(a=>a.avgCadence||NaN))} previous={avg(previousAnalysisScoped.map(a=>a.avgCadence||NaN))} formatter={v=>`${v?Math.round(v):0} spm`}/>}</div></section>
+    <section className="analysis-grid"><div className="panel"><div className="eyebrow">ACTIVITY MIX</div><h3>종목별 기록</h3><div className="mini-grid" style={{marginTop:12}}>{(['러닝','등산'] as const).map(t=><div key={t}><span>{t}</span><b>{typeCounts[t].n}회 · {typeCounts[t].d.toFixed(1)} km</b></div>)}</div><div className="detail-note" style={{marginTop:10}}>운동 추세 분석은 현재 측정하는 러닝과 등산을 중심으로 표시합니다.</div></div><div className="panel"><div className="eyebrow">RECENT RUNNING</div><h3>{analysisType==='등산'?'기간 내 등산':'기간 내 러닝'}</h3><div className="bar-list" style={{marginTop:12}}>{analysisScoped.filter(a=>a.type===(analysisType==='등산'?'등산':'러닝')).slice(0,12).map(a=><div key={a.id}><span>{fmtDate(a.date)}</span><i><em style={{width:`${Math.max(6,Math.min(100,(a.distanceKm/10)*100))}%`}}/></i><b>{analysisType==='등산'?`${a.distanceKm.toFixed(1)}km`:fmtPace(a.avgPaceSecPerKm)}</b></div>)}</div>{!analysisScoped.filter(a=>a.type===(analysisType==='등산'?'등산':'러닝')).length&&<div className="empty" style={{marginTop:10,padding:20}}>선택 기간의 기록이 없습니다.</div>}</div></section>
+   </>}
    {tab==='trash'&&<><div className="trash-note">삭제한 기록을 복원하거나 영구 삭제할 수 있습니다.</div><div className="records-list">{trash.map(a=><article className="trash-card" key={a.id}><div><b>{fmtDate(a.date)} · {a.type}</b><span>{a.distanceKm.toFixed(2)} km · {fmtDur(a.durationSec)}</span></div><div><button className="secondary" onClick={()=>setConfirm({kind:'restore',id:a.id})}>복원</button><button className="danger" onClick={()=>setConfirm({kind:'delete',id:a.id})}>영구 삭제</button></div></article>)}</div>{!trash.length&&<div className="empty">휴지통이 비어 있습니다.</div>}</>}
    {tab==='more'&&<><section className="panel settings-panel"><div className="eyebrow">SYNC</div><h3>GitHub 데이터 동기화</h3><p>웹에서 사진을 업로드하지 않습니다. GitHub에 저장된 Motion Log 데이터셋을 브라우저 캐시와 ID 기준으로 병합합니다.</p><div className="actions"><button className="primary" onClick={syncNow}>지금 동기화</button><span style={{alignSelf:'center',fontSize:9,color:'var(--muted)'}}>{syncStatus}</span></div></section><section className="panel settings-panel"><div className="eyebrow">BACKUP</div><h3>데이터 백업 / 복원</h3><p>JSON은 운동 기록 전체 복원용, CSV는 엑셀/분석용입니다.</p><div className="actions"><button className="secondary" onClick={exportJson}>JSON 내보내기</button><button className="secondary" onClick={exportCsv}>CSV 내보내기</button><label className="secondary file-btn">JSON 복원<input type="file" accept="application/json,.json" onChange={importJson}/></label></div>{importStatus&&<div className="detail-note">{importStatus}</div>}</section><section className="panel settings-panel"><div className="eyebrow">SOURCE</div><h3>운동 입력 흐름</h3><p>Galaxy Watch → Samsung Health → 캡처 → ChatGPT 프로젝트의 운동 대화 → 기록 추출·분석 → GitHub 데이터셋 반영 → Motion Log 조회.</p></section><section className="panel settings-panel"><div className="eyebrow">MAINTENANCE</div><h3>화면 테마</h3><button className="secondary" onClick={()=>setDark(v=>!v)}>{dark?'라이트 모드로 전환':'다크 모드로 전환'}</button></section></>}
   </section>
