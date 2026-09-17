@@ -17,7 +17,8 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const versionKey = 'motion-log-direct-test-v5';
+  const versionKey = 'motion-log-direct-test-v6';
+  const url = '/motion-log-data-test.json?v=6';
 
   const originalSetItem = Storage.prototype.setItem;
   Storage.prototype.setItem = function(name, value) {
@@ -31,34 +32,61 @@ const bootstrapScript = `
     return originalSetItem.call(this, name, value);
   };
 
+  const normalize = (data) => {
+    if (!Array.isArray(data)) throw new Error('dataset is not an array');
+    return data.map((row, i) => {
+      if (!row || typeof row !== 'object') throw new Error('invalid record ' + i);
+      if (!row.id) throw new Error('record ' + i + ' is missing id');
+      if (!row.date) throw new Error('record ' + i + ' is missing date');
+      return { ...row, source: row.source || 'Samsung Health' };
+    });
+  };
+
+  const merge = (local, remote) => {
+    const localById = new Map(local.map(row => [row.id, row]));
+    const merged = remote.map(row => localById.get(row.id) || row);
+    const remoteIds = new Set(remote.map(row => row.id));
+    for (const row of local) {
+      if (!remoteIds.has(row.id)) merged.push(row);
+    }
+    return merged;
+  };
+
+  const sameIds = (a, b) => {
+    if (a.length !== b.length) return false;
+    const aIds = a.map(row => row.id).sort();
+    const bIds = b.map(row => row.id).sort();
+    return aIds.every((id, i) => id === bIds[i]);
+  };
+
   const load = async () => {
     try {
       const raw = localStorage.getItem(key);
-      const existing = raw ? JSON.parse(raw) : null;
-      if (Array.isArray(existing) && existing.length > 0) return;
-
-      const res = await fetch('/motion-log-data-test.json?v=5', { cache: 'no-store' });
-      if (!res.ok) throw new Error('HTTP ' + res.status);
-
-      const data = await res.json();
-
-      if (!Array.isArray(data) || data.length !== 42) {
-        throw new Error(
-          'expected 42 records, got ' +
-          (Array.isArray(data) ? data.length : 'invalid data')
-        );
+      let local = [];
+      if (raw) {
+        try {
+          const parsed = JSON.parse(raw);
+          if (Array.isArray(parsed)) local = parsed;
+        } catch {}
       }
 
-      const normalized = data.map((row, i) => ({
-        ...row,
-        id: row?.id || ('sh-test-' + i),
-        source: row?.source || 'Samsung Health',
-      }));
+      const res = await fetch(url, { cache: 'no-store' });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const remote = normalize(await res.json());
+      const merged = merge(local, remote);
+      const changed = !sameIds(local, merged);
 
-      localStorage.setItem(key, JSON.stringify(normalized));
-      localStorage.setItem(versionKey, '1');
+      if (!sameIds(local, remote) || changed || local.length === 0) {
+        localStorage.setItem(key, JSON.stringify(merged));
+        localStorage.setItem(versionKey, String(remote.length));
+        if (local.length > 0 && !sameIds(local, merged)) {
+          setTimeout(() => window.location.reload(), 120);
+        } else if (local.length === 0) {
+          setTimeout(() => window.location.reload(), 120);
+        }
+      }
     } catch (error) {
-      console.error('[Motion Log] test data bootstrap failed:', error);
+      console.error('[Motion Log] Samsung Health data sync failed:', error);
     }
   };
 
