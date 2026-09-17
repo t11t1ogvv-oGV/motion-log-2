@@ -21,7 +21,25 @@ const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
   const versionKey = 'motion-log-direct-test-v8';
-  const url = '/motion-log-data-test.json?v=8';
+  const localPath = '/motion-log-data-test.json';
+  const remoteUrl = 'https://raw.githubusercontent.com/t11t1ogvv-oGV/motion-log-2/workout-data/public/motion-log-data-test.json';
+
+  // Keep the existing page code intact while transparently redirecting its
+  // workout-data fetches to the GitHub data branch. This lets workout records
+  // change without rebuilding or redeploying the app.
+  const originalFetch = window.fetch.bind(window);
+  window.fetch = (input, init) => {
+    try {
+      const requested = typeof input === 'string' ? input : input?.url;
+      if (requested) {
+        const pathname = new URL(requested, window.location.origin).pathname;
+        if (pathname === localPath) {
+          return originalFetch(remoteUrl + '?t=' + Date.now(), { ...(init || {}), cache: 'no-store' });
+        }
+      }
+    } catch {}
+    return originalFetch(input, init);
+  };
 
   const originalSetItem = Storage.prototype.setItem;
   Storage.prototype.setItem = function(name, value) {
@@ -75,7 +93,7 @@ const bootstrapScript = `
           if (Array.isArray(parsed)) local = parsed;
         } catch {}
       }
-      const res = await fetch(url, { cache: 'no-store' });
+      const res = await originalFetch(remoteUrl + '?t=' + Date.now(), { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const remote = normalize(await res.json());
       const merged = merge(local, remote);
@@ -87,7 +105,7 @@ const bootstrapScript = `
         localStorage.setItem(versionKey, String(remote.length));
       }
     } catch (error) {
-      console.error('[Motion Log] Samsung Health data sync failed:', error);
+      console.error('[Motion Log] GitHub workout data sync failed:', error);
     }
   };
 
