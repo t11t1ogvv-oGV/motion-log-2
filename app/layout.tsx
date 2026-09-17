@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from 'next';
 import './globals.css';
 import './motion-enhancements.css';
 import MotionLogEnhancements from './MotionLogEnhancements';
+import MotionLogBrand from './MotionLogBrand';
 
 export const metadata: Metadata = {
   title: 'Motion Log',
@@ -105,6 +106,7 @@ export default function RootLayout({
         <script dangerouslySetInnerHTML={{ __html: bootstrapScript }} />
         {children}
         <MotionLogEnhancements />
+        <MotionLogBrand />
       </body>
     </html>
   );
