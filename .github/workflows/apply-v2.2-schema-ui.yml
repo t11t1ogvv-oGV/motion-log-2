@@ -1,0 +1,64 @@
+name: Apply Motion Log V2.2 schema UI patch
+
+on:
+  push:
+    branches:
+      - v2.2-schema-ui-preview-final
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Patch schema-aware UI
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p = Path('app/page.tsx')
+          text = p.read_text(encoding='utf-8')
+
+          old_type = "  avgHeartRate?:number; maxHeartRate?:number; avgCadence?:number; maxCadence?:number; vo2max?:number;"
+          new_type = "  avgHeartRate?:number; maxHeartRate?:number; avgCadence?:number; maxCadence?:number; vo2max?:number;"
+          new_type += "\n  minAltitudeM?:number; maxAltitudeM?:number; uphillDistanceKm?:number; downhillDistanceKm?:number;"
+          if "minAltitudeM?:number" not in text:
+              if old_type not in text:
+                  raise SystemExit('Activity type anchor not found')
+              text = text.replace(old_type, new_type, 1)
+
+          anchor = '<Metric label="고도 하강"'
+          if 'label="최저 고도"' not in text:
+              start = text.find(anchor)
+              if start < 0:
+                  raise SystemExit('Elevation detail anchor not found')
+              end = text.find('/>', start)
+              if end < 0:
+                  raise SystemExit('Elevation detail closing tag not found')
+              insert = ("\n<Metric label=\"최저 고도\" value={selected.minAltitudeM??'—'}" 
+                        " unit={selected.minAltitudeM!=null?'m':undefined}/>"
+                        "<Metric label=\"최고 고도\" value={selected.maxAltitudeM??'—'}"
+                        " unit={selected.maxAltitudeM!=null?'m':undefined}/>"
+                        "<Metric label=\"오르막 거리\" value={selected.uphillDistanceKm!=null?selected.uphillDistanceKm.toFixed(2):'—'}"
+                        " unit={selected.uphillDistanceKm!=null?'km':undefined}/>"
+                        "<Metric label=\"내리막 거리\" value={selected.downhillDistanceKm!=null?selected.downhillDistanceKm.toFixed(2):'—'}"
+                        " unit={selected.downhillDistanceKm!=null?'km':undefined}/>")
+              text = text[:end+2] + insert + text[end+2:]
+
+          p.write_text(text, encoding='utf-8')
+          PY
+
+      - name: Commit patch
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add app/page.tsx
+          git diff --cached --quiet && exit 0
+          git commit -m "V2.2: display expanded elevation metrics"
+          git push origin HEAD:${GITHUB_REF_NAME}
