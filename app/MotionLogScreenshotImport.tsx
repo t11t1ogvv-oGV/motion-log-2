@@ -2,54 +2,52 @@
 
 import { ChangeEvent, useEffect, useMemo, useState } from 'react';
 import { createPortal } from 'react-dom';
+import {
+  OcrDraft,
+  normalizeOcrText,
+  parseOcrDraft,
+  recognizeSamsungHealthImages,
+} from './samsungHealthOcr';
 
-type ActivityType = '러닝' | '걷기' | '자전거' | '등산' | '수영' | '기타';
+type ActivityType = OcrDraft['type'];
 
-type Draft = {
-  date: string;
-  type: ActivityType;
-  distanceKm: string;
-  duration: string;
-  avgPace: string;
-  bestPace: string;
-  avgSpeed: string;
-  bestSpeed: string;
-  calories: string;
-  steps: string;
-  avgHeartRate: string;
-  maxHeartRate: string;
-  avgCadence: string;
-  maxCadence: string;
-  vo2max: string;
-  elevationGain: string;
-  elevationLoss: string;
-  note: string;
+type Draft = OcrDraft & { note: string };
+
+type StoredActivity = {
+  id?: string;
+  date?: string;
+  type?: string;
+  distanceKm?: number;
+  durationSec?: number;
+  [key: string]: unknown;
 };
 
 const STORAGE = 'motion-log-records-v4';
+
 const blankDraft = (): Draft => ({
-  date: '', type: '러닝', distanceKm: '', duration: '', avgPace: '', bestPace: '', avgSpeed: '', bestSpeed: '',
-  calories: '', steps: '', avgHeartRate: '', maxHeartRate: '', avgCadence: '', maxCadence: '', vo2max: '',
-  elevationGain: '', elevationLoss: '', note: '',
+  date: '',
+  type: '러닝',
+  distanceKm: '',
+  duration: '',
+  avgPace: '',
+  bestPace: '',
+  avgSpeed: '',
+  bestSpeed: '',
+  calories: '',
+  steps: '',
+  avgHeartRate: '',
+  maxHeartRate: '',
+  avgCadence: '',
+  maxCadence: '',
+  vo2max: '',
+  elevationGain: '',
+  elevationLoss: '',
+  note: '',
 });
 
-const normalizeOcr = (value: string) => value
-  .replace(/[\u200b\u200c\u200d]/g, '')
-  .replace(/[′’]/g, "'")
-  .replace(/[″”]/g, '"')
-  .replace(/\s+/g, ' ')
-  .trim();
-
-const capture = (text: string, patterns: RegExp[]) => {
-  for (const pattern of patterns) {
-    const match = text.match(pattern);
-    if (match?.[1]) return match[1].trim();
-  }
-  return '';
-};
-
 const parseNumber = (value: string) => {
-  const number = Number(value.replace(/,/g, ''));
+  const normalized = value.replace(/[Oo]/g, '0').replace(/[Il]/g, '1').replace(/,/g, '').trim();
+  const number = Number(normalized);
   return Number.isFinite(number) ? number : undefined;
 };
 
@@ -74,56 +72,17 @@ const parseDuration = (value: string) => {
   return undefined;
 };
 
-const parseDate = (value: string) => {
-  const match = value.match(/(20\d{2})[^0-9]?(\d{1,2})[^0-9]?(\d{1,2})/);
-  if (!match) return '';
-  return `${match[1]}-${String(Number(match[2])).padStart(2, '0')}-${String(Number(match[3])).padStart(2, '0')}`;
-};
-
-const parseDraft = (texts: string[]): Draft => {
-  const text = texts.map(normalizeOcr).join(' ');
-  const draft = blankDraft();
-
-  draft.date = parseDate(capture(text, [
-    /((?:20\d{2})\s*[./년-]\s*\d{1,2}\s*[./월-]\s*\d{1,2}(?:\s*일)?)/i,
-    /((?:20\d{2})[./-]\d{1,2}[./-]\d{1,2})/i,
-  ]));
-
-  if (/등산|하이킹|hiking/i.test(text)) draft.type = '등산';
-  else if (/러닝|달리기|running|run/i.test(text)) draft.type = '러닝';
-
-  draft.distanceKm = capture(text, [
-    /(?:거리|distance)\s*[^0-9]{0,20}(\d+(?:\.\d+)?)\s*km/i,
-    /(\d+(?:\.\d+)?)\s*km/i,
-  ]);
-  draft.duration = capture(text, [
-    /(?:운동\s*시간|운동시간|duration)\s*[^0-9]{0,25}((?:\d{1,2}:){1,2}\d{2})/i,
-    /(?:운동\s*시간|운동시간|duration)\s*[^0-9]{0,25}(\d+\s*시간\s*\d+\s*분(?:\s*\d+\s*초)?)/i,
-  ]);
-  draft.avgPace = capture(text, [/(?:평균\s*페이스|average\s*pace)\s*[^0-9]{0,25}(\d{1,2}\s*(?:'|:|분)?\s*\d{2})/i]);
-  draft.bestPace = capture(text, [/(?:최고\s*페이스|best\s*pace)\s*[^0-9]{0,25}(\d{1,2}\s*(?:'|:|분)?\s*\d{2})/i]);
-  draft.avgSpeed = capture(text, [/(?:평균\s*속도|average\s*speed)\s*[^0-9]{0,25}(\d+(?:\.\d+)?)\s*km\/?h/i]);
-  draft.bestSpeed = capture(text, [/(?:최고\s*속도|best\s*speed)\s*[^0-9]{0,25}(\d+(?:\.\d+)?)\s*km\/?h/i]);
-  draft.calories = capture(text, [/(?:칼로리|소모\s*칼로리|calories?)\s*[^0-9]{0,25}([\d,]+(?:\.\d+)?)\s*k?cal/i]);
-  draft.steps = capture(text, [/(?:걸음\s*수|걸음수|steps?)\s*[^0-9]{0,25}([\d,]+)/i]);
-  draft.avgHeartRate = capture(text, [/(?:평균\s*심박(?:수)?|average\s*heart\s*rate)\s*[^0-9]{0,25}(\d{2,3})\s*bpm/i]);
-  draft.maxHeartRate = capture(text, [/(?:최대\s*심박(?:수)?|max(?:imum)?\s*heart\s*rate)\s*[^0-9]{0,25}(\d{2,3})\s*bpm/i]);
-  draft.avgCadence = capture(text, [/(?:평균\s*케이던스|average\s*cadence)\s*[^0-9]{0,25}(\d{2,3})\s*spm/i]);
-  draft.maxCadence = capture(text, [/(?:최대\s*케이던스|max(?:imum)?\s*cadence)\s*[^0-9]{0,25}(\d{2,3})\s*spm/i]);
-  draft.vo2max = capture(text, [/(?:vo[₂2]?\s*max|vo2\s*max)\s*[^0-9]{0,25}(\d+(?:\.\d+)?)/i]);
-  draft.elevationGain = capture(text, [/(?:상승\s*고도|고도\s*상승|elevation\s*gain)\s*[^0-9]{0,25}(\d+(?:\.\d+)?)\s*m/i]);
-  draft.elevationLoss = capture(text, [/(?:하강\s*고도|고도\s*하강|elevation\s*loss)\s*[^0-9]{0,25}(\d+(?:\.\d+)?)\s*m/i]);
-
-  return draft;
-};
+const hasRequiredFields = (draft: Draft) => Boolean(
+  draft.date && parseNumber(draft.distanceKm) && parseDuration(draft.duration),
+);
 
 const toActivity = (draft: Draft) => {
   const distanceKm = parseNumber(draft.distanceKm);
   const durationSec = parseDuration(draft.duration);
   if (!draft.date || !distanceKm || !durationSec) return null;
-  const id = `ocr-${draft.date.replace(/-/g, '')}-${Date.now().toString(36)}`;
+
   return {
-    id,
+    id: `ocr-${draft.date.replace(/-/g, '')}-${Date.now().toString(36)}`,
     date: draft.date,
     type: draft.type,
     distanceKm,
@@ -151,7 +110,7 @@ const fields: { key: keyof Draft; label: string; placeholder?: string; type?: 'd
   { key: 'distanceKm', label: '거리 (km)', placeholder: '2.12' },
   { key: 'duration', label: '운동시간', placeholder: '15:00' },
   { key: 'avgPace', label: '평균 페이스', placeholder: "7'03\"" },
-  { key: 'bestPace', label: '최고 페이스' },
+  { key: 'bestPace', label: '최고 페이스', placeholder: "5'51\"" },
   { key: 'avgSpeed', label: '평균 속도' },
   { key: 'bestSpeed', label: '최고 속도' },
   { key: 'calories', label: '칼로리' },
@@ -165,17 +124,20 @@ const fields: { key: keyof Draft; label: string; placeholder?: string; type?: 'd
   { key: 'elevationLoss', label: '하강 고도' },
 ];
 
+const FIELD_KEYS: (keyof Draft)[] = fields.map(field => field.key);
+
 export default function MotionLogScreenshotImport() {
   const [target, setTarget] = useState<HTMLElement | null>(null);
   const [open, setOpen] = useState(false);
   const [files, setFiles] = useState<File[]>([]);
   const [draft, setDraft] = useState<Draft>(blankDraft);
-  const [ocrStatus, setOcrStatus] = useState('캡처 최대 3장 · 브라우저에서 OCR');
+  const [ocrStatus, setOcrStatus] = useState('캡처 최대 3장 · 정밀 OCR 준비');
   const [busy, setBusy] = useState(false);
   const [rawText, setRawText] = useState('');
   const [error, setError] = useState('');
   const [duplicate, setDuplicate] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [passCount, setPassCount] = useState(0);
 
   useEffect(() => {
     const refresh = () => {
@@ -188,6 +150,11 @@ export default function MotionLogScreenshotImport() {
     return () => observer.disconnect();
   }, []);
 
+  const recognizedCount = useMemo(
+    () => FIELD_KEYS.filter(key => Boolean(String(draft[key] || '').trim())).length,
+    [draft],
+  );
+
   const summary = useMemo(() => [
     draft.distanceKm && `${draft.distanceKm} km`,
     draft.duration,
@@ -197,50 +164,57 @@ export default function MotionLogScreenshotImport() {
   ].filter(Boolean).join(' · '), [draft]);
 
   const chooseFiles = (event: ChangeEvent<HTMLInputElement>) => {
-    setFiles(Array.from(event.target.files || []).slice(0, 3));
+    const selected = Array.from(event.target.files || []).slice(0, 3);
+    setFiles(selected);
     setDraft(blankDraft());
     setRawText('');
     setError('');
     setDuplicate(false);
     setSaved(false);
-    setOcrStatus('캡처 선택 완료 · 자동 인식을 눌러주세요.');
+    setPassCount(0);
+    setOcrStatus(selected.length ? `${selected.length}장 선택됨 · 정밀 OCR 준비` : '캡처 최대 3장 · 정밀 OCR 준비');
     event.target.value = '';
   };
 
   const runOcr = async () => {
-    if (!files.length) return setError('삼성헬스 캡처를 먼저 선택해주세요.');
+    if (!files.length) {
+      setError('삼성헬스 캡처를 먼저 선택해주세요.');
+      return;
+    }
+
     setBusy(true);
     setError('');
     setDuplicate(false);
     setSaved(false);
-    try {
-      const { createWorker } = await import('tesseract.js');
-      const worker = await createWorker(['kor', 'eng'], 1, {
-        logger: message => {
-          if (message.status === 'recognizing text') setOcrStatus(`OCR 진행 ${Math.round((message.progress || 0) * 100)}%`);
-        },
-      });
-      const texts: string[] = [];
-      for (let i = 0; i < files.length; i += 1) {
-        setOcrStatus(`캡처 ${i + 1}/${files.length} 인식 중…`);
-        const result = await worker.recognize(files[i]);
-        texts.push(result.data.text || '');
-      }
-      await worker.terminate();
+    setPassCount(0);
 
-      const parsed = parseDraft(texts);
-      const duration = parseDuration(parsed.duration) || 0;
-      const distance = parseNumber(parsed.distanceKm) || 0;
-      let local: any[] = [];
-      try {
-        const stored = JSON.parse(localStorage.getItem(STORAGE) || '[]');
-        local = Array.isArray(stored) ? stored : [];
-      } catch { local = []; }
-      const hasDuplicate = local.some(row => row.date === parsed.date && row.type === parsed.type && Math.abs(Number(row.distanceKm) - distance) < 0.01 && Math.abs(Number(row.durationSec) - duration) <= 2);
+    try {
+      const result = await recognizeSamsungHealthImages(files, message => setOcrStatus(message));
+      const parsed = { ...result.draft, note: '' } as Draft;
+      const normalizedRaw = result.texts
+        .map(pass => `[캡처 ${pass.imageIndex + 1} · ${pass.mode}]\n${normalizeOcrText(pass.text)}`)
+        .join('\n\n--- 다음 인식 패스 ---\n\n');
+
       setDraft(parsed);
-      setRawText(texts.join('\n\n--- 캡처 구분 ---\n\n'));
+      setRawText(normalizedRaw);
+      setPassCount(result.texts.length);
+
+      const distance = parseNumber(parsed.distanceKm) || 0;
+      const duration = parseDuration(parsed.duration) || 0;
+      const local = readLocal();
+      const hasDuplicate = local.some(row => (
+        row.date === parsed.date
+        && row.type === parsed.type
+        && Math.abs(Number(row.distanceKm) - distance) < 0.01
+        && Math.abs(Number(row.durationSec) - duration) <= 2
+      ));
       setDuplicate(hasDuplicate);
-      setOcrStatus(parsed.date && distance && duration ? '자동 추출 완료 · 값을 확인하세요.' : '일부 값을 읽지 못했습니다 · 직접 입력하세요.');
+
+      if (hasRequiredFields(parsed)) {
+        setOcrStatus(`자동 추출 완료 · ${recognizedCountFrom(parsed)}/${FIELD_KEYS.length}개 항목 인식`);
+      } else {
+        setOcrStatus('필수 항목 일부 미인식 · 아래 값을 확인/수정해주세요.');
+      }
     } catch (err) {
       setError(`OCR 실패: ${err instanceof Error ? err.message : String(err)}`);
       setOcrStatus('OCR을 완료하지 못했습니다.');
@@ -252,18 +226,23 @@ export default function MotionLogScreenshotImport() {
   const save = () => {
     setError('');
     const activity = toActivity(draft);
-    if (!activity) return setError('날짜, 거리, 운동시간은 필수입니다.');
+    if (!activity) {
+      setError('날짜, 거리, 운동시간은 필수입니다.');
+      return;
+    }
 
-    let local: any[] = [];
-    try {
-      const stored = JSON.parse(localStorage.getItem(STORAGE) || '[]');
-      local = Array.isArray(stored) ? stored : [];
-    } catch { local = []; }
+    const local = readLocal();
+    const exactDuplicate = local.some(row => (
+      row.date === activity.date
+      && row.type === activity.type
+      && Math.abs(Number(row.distanceKm) - activity.distanceKm) < 0.01
+      && Math.abs(Number(row.durationSec) - activity.durationSec) <= 2
+    ));
 
-    const exactDuplicate = local.some(row => row.date === activity.date && row.type === activity.type && Math.abs(Number(row.distanceKm) - activity.distanceKm) < 0.01 && Math.abs(Number(row.durationSec) - activity.durationSec) <= 2);
     if (exactDuplicate && !duplicate) {
       setDuplicate(true);
-      return setError('기존 기록과 매우 유사합니다. 중복 여부를 확인한 뒤 저장 버튼을 다시 눌러주세요.');
+      setError('기존 기록과 매우 유사합니다. 중복 여부를 확인한 뒤 저장 버튼을 다시 눌러주세요.');
+      return;
     }
 
     localStorage.setItem(STORAGE, JSON.stringify([...local, activity]));
@@ -279,20 +258,34 @@ export default function MotionLogScreenshotImport() {
     setError('');
     setDuplicate(false);
     setSaved(false);
-    setOcrStatus('캡처 최대 3장 · 브라우저에서 OCR');
+    setPassCount(0);
+    setOcrStatus('캡처 최대 3장 · 정밀 OCR 준비');
   };
+
+  const fileSummary = files.length
+    ? files.map((file, index) => `${index + 1}. ${file.name.length > 28 ? `${file.name.slice(0, 25)}…` : file.name}`).join(' · ')
+    : '운동 상세 · 그래프/지도 · 랩 캡처 순서로 넣어도 됩니다.';
 
   return (
     <>
-      {target && createPortal(<button className="motion-import-trigger" onClick={() => setOpen(true)}>+ 운동 캡처 추가</button>, target)}
+      {target && createPortal(
+        <button className="motion-import-trigger" onClick={() => setOpen(true)}>+ 운동 캡처 추가</button>,
+        target,
+      )}
       {open && createPortal(
-        <div className="motion-import-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}>
+        <div
+          className="motion-import-backdrop"
+          onMouseDown={event => { if (event.target === event.currentTarget) setOpen(false); }}
+        >
           <section className="motion-import-modal" role="dialog" aria-modal="true" aria-labelledby="motion-import-title">
             <div className="motion-import-head">
               <div>
-                <div className="eyebrow">V2.0 · SCREENSHOT IMPORT</div>
+                <div className="eyebrow">V2.0.1 · OCR ACCURACY</div>
                 <h2 id="motion-import-title">운동 캡처로 기록 추가</h2>
-                <p>삼성헬스 캡처를 최대 3장 선택하면 이 기기의 브라우저에서 OCR로 값을 추출합니다. 저장 전에 직접 확인하고 수정할 수 있습니다.</p>
+                <p>
+                  삼성헬스 캡처를 최대 3장 선택합니다. 이미지 확대·고대비 전처리와 복수 OCR 패스를 사용하고,
+                  인식이 불확실한 값은 빈칸으로 남깁니다. 저장 전 직접 확인·수정할 수 있습니다.
+                </p>
               </div>
               <button className="close" onClick={() => setOpen(false)} aria-label="닫기">×</button>
             </div>
@@ -300,31 +293,79 @@ export default function MotionLogScreenshotImport() {
             <label className="motion-import-drop">
               <input type="file" accept="image/*" multiple onChange={chooseFiles} />
               <strong>{files.length ? `${files.length}장 선택됨` : '삼성헬스 캡처 선택'}</strong>
-              <span>운동 상세 · 그래프/지도 · 랩 캡처 순서로 넣어도 됩니다.</span>
+              <span>{fileSummary}</span>
             </label>
 
             <div className="motion-import-actions">
-              <button className="primary" disabled={busy || !files.length} onClick={runOcr}>{busy ? '인식 중…' : '자동 인식'}</button>
+              <button className="primary" disabled={busy || !files.length} onClick={runOcr}>
+                {busy ? '정밀 인식 중…' : '정밀 자동 인식'}
+              </button>
               <button className="secondary" disabled={busy} onClick={reset}>초기화</button>
               <span>{ocrStatus}</span>
             </div>
 
+            <div className="motion-import-quality">
+              <span>인식 항목</span>
+              <b>{recognizedCount}/{FIELD_KEYS.length}</b>
+              <span>{passCount ? `OCR 패스 ${passCount}회` : '아직 인식 전'}</span>
+            </div>
+
             {summary && <div className="motion-import-preview"><span>추출 미리보기</span><b>{summary}</b></div>}
-            {duplicate && <div className="motion-import-warning">기존 기록과 매우 유사한 운동입니다. 중복 여부를 확인하세요.</div>}
+            {duplicate && <div className="motion-import-warning">기존 기록과 매우 유사한 운동입니다. 날짜·종목·거리·시간을 확인하세요.</div>}
             {error && <div className="motion-import-error">{error}</div>}
 
             <div className="motion-import-grid">
-              <label><span>종목</span><select value={draft.type} onChange={event => setDraft(current => ({ ...current, type: event.target.value as ActivityType }))}><option>러닝</option><option>등산</option><option>걷기</option><option>자전거</option><option>수영</option><option>기타</option></select></label>
-              {fields.map(field => <label key={field.key}><span>{field.label}</span><input type={field.type || 'text'} inputMode={field.type ? undefined : 'decimal'} placeholder={field.placeholder} value={draft[field.key]} onChange={event => setDraft(current => ({ ...current, [field.key]: event.target.value }))} /></label>)}
+              <label>
+                <span>종목</span>
+                <select
+                  value={draft.type}
+                  onChange={event => setDraft(current => ({ ...current, type: event.target.value as ActivityType }))}
+                >
+                  <option>러닝</option>
+                  <option>등산</option>
+                  <option>걷기</option>
+                  <option>자전거</option>
+                  <option>수영</option>
+                  <option>기타</option>
+                </select>
+              </label>
+              {fields.map(field => (
+                <label key={field.key}>
+                  <span>{field.label}</span>
+                  <input
+                    type={field.type || 'text'}
+                    inputMode={field.type ? undefined : 'decimal'}
+                    placeholder={field.placeholder}
+                    value={draft[field.key] as string}
+                    onChange={event => setDraft(current => ({ ...current, [field.key]: event.target.value }))}
+                  />
+                </label>
+              ))}
             </div>
 
-            <label className="motion-import-note"><span>메모</span><textarea value={draft.note} onChange={event => setDraft(current => ({ ...current, note: event.target.value }))} placeholder="오늘 운동 메모 (선택)" /></label>
+            <label className="motion-import-note">
+              <span>메모</span>
+              <textarea
+                value={draft.note}
+                onChange={event => setDraft(current => ({ ...current, note: event.target.value }))}
+                placeholder="오늘 운동 메모 (선택)"
+              />
+            </label>
 
-            {rawText && <details className="motion-import-raw"><summary>OCR 원문 확인</summary><pre>{rawText}</pre></details>}
+            {rawText && (
+              <details className="motion-import-raw">
+                <summary>OCR 원문 / 패스 결과 확인</summary>
+                <pre>{rawText}</pre>
+              </details>
+            )}
 
             <div className="motion-import-foot">
-              <span>{saved ? '저장 완료' : '저장하면 현재 브라우저의 Motion Log 기록에 추가됩니다.'}</span>
-              <button className="primary" disabled={busy} onClick={save}>{saved ? '저장됨' : '기록 저장'}</button>
+              <span>
+                {saved ? '저장 완료' : '자동 인식값은 확정값이 아닙니다. 화면과 비교한 뒤 저장하세요.'}
+              </span>
+              <button className="primary" disabled={busy} onClick={save}>
+                {saved ? '저장됨' : '기록 저장'}
+              </button>
             </div>
           </section>
         </div>,
@@ -333,3 +374,14 @@ export default function MotionLogScreenshotImport() {
     </>
   );
 }
+
+const readLocal = (): StoredActivity[] => {
+  try {
+    const stored = JSON.parse(localStorage.getItem(STORAGE) || '[]');
+    return Array.isArray(stored) ? stored as StoredActivity[] : [];
+  } catch {
+    return [];
+  }
+};
+
+const recognizedCountFrom = (draft: Draft) => FIELD_KEYS.filter(key => Boolean(String(draft[key] || '').trim())).length;
