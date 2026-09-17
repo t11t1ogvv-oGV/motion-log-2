@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import './globals.css';
+import './motion-enhancements.css';
 import MotionLogEnhancements from './MotionLogEnhancements';
 
 export const metadata: Metadata = {
