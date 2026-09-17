@@ -1,18 +1,27 @@
 # Motion Log
 
-개인 운동 기록용 Next.js 웹앱 1차 버전입니다.
+개인 운동 기록용 Next.js 웹앱입니다.
 
 ## 현재 기능
-- 모바일 우선 반응형 대시보드
-- 운동 기록 추가
-- 러닝/걷기 등 운동 종류 선택
-- 운동 캡처 이미지 첨부 및 미리보기
-- 거리/시간/평균심박/케이던스/칼로리/체중/메모 기록
-- 최근 기록 및 전체 기록 확인
-- 체중·운동거리 추이 그래프
-- 브라우저 LocalStorage 저장
+- 모바일 우선 반응형 운동 대시보드
+- Samsung Health에서 정리된 운동 기록 조회
+- 러닝/걷기 등 운동 종류별 기록 확인
+- 최근 기록 및 전체 기록 검색·정렬·필터
+- 기간별 운동 분석 및 종목별 통계
+- 월별 거리와 운동 캘린더
+- 기록 상세 보기, 휴지통, 복원, 영구 삭제
+- JSON/CSV 백업
+- 브라우저 LocalStorage 캐시
 - 다크/라이트 모드
-- Vercel 배포용 설정
+- Vercel 배포
+
+## 데이터 입력 흐름
+
+운동 사진은 웹사이트에서 직접 업로드하지 않는다.
+
+Galaxy Watch → Samsung Health → 화면 캡처 → ChatGPT `프로젝트 → 운동` 대화 → 운동 데이터 추출 및 분석 → GitHub 데이터셋 반영 → Vercel 배포 후 Motion Log에서 조회
+
+세부 규칙은 `docs/WORKOUT_GPT_WORKFLOW.md`를 참고한다.
 
 ## 실행
 
@@ -21,10 +30,8 @@ npm install
 npm run dev
 ```
 
-브라우저에서 http://localhost:3000 접속.
+브라우저에서 `http://localhost:3000` 접속.
 
 ## 배포
-GitHub에 업로드한 뒤 Vercel에서 해당 저장소를 Import하면 됩니다.
 
-## 2차 버전 계획
-사진 업로드 → 서버에서 이미지 분석 → 운동 값 자동 추출 → 확인 후 저장하는 AI 기능을 추가할 수 있습니다. 이때 `OPENAI_API_KEY`는 Vercel Environment Variables에만 저장해야 합니다.
+GitHub `main` 변경사항을 Vercel Production에 배포한다.
