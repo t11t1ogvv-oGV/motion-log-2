@@ -44,7 +44,10 @@ const bootstrapScript = `
 
   const merge = (local, remote) => {
     const localById = new Map(local.map(row => [row.id, row]));
-    const merged = remote.map(row => localById.get(row.id) || row);
+    const merged = remote.map(row => {
+      const localRow = localById.get(row.id);
+      return localRow?.deletedAt ? { ...row, deletedAt: localRow.deletedAt } : row;
+    });
     const remoteIds = new Set(remote.map(row => row.id));
     for (const row of local) {
       if (!remoteIds.has(row.id)) merged.push(row);
@@ -74,16 +77,11 @@ const bootstrapScript = `
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const remote = normalize(await res.json());
       const merged = merge(local, remote);
-      const changed = !sameIds(local, merged);
 
-      if (!sameIds(local, remote) || changed || local.length === 0) {
+      if (!sameIds(local, merged) || local.length === 0) {
         localStorage.setItem(key, JSON.stringify(merged));
         localStorage.setItem(versionKey, String(remote.length));
-        if (local.length > 0 && !sameIds(local, merged)) {
-          setTimeout(() => window.location.reload(), 120);
-        } else if (local.length === 0) {
-          setTimeout(() => window.location.reload(), 120);
-        }
+        setTimeout(() => window.location.reload(), 120);
       }
     } catch (error) {
       console.error('[Motion Log] Samsung Health data sync failed:', error);
