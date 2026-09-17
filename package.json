@@ -7,11 +7,12 @@
     "build": "next build",
     "start": "next start"
   },
-"dependencies": {
-  "next": "latest",
-  "react": "19.1.0",
-  "react-dom": "19.1.0"
-},
+  "dependencies": {
+    "next": "latest",
+    "react": "19.1.0",
+    "react-dom": "19.1.0",
+    "tesseract.js": "7.0.0"
+  },
   "devDependencies": {
     "@types/node": "22.10.2",
     "@types/react": "19.0.6",
