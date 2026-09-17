@@ -7,7 +7,10 @@ export default function MotionLogBrand() {
   const [target, setTarget] = useState<HTMLElement | null>(null);
 
   useEffect(() => {
-    const refresh = () => setTarget(document.querySelector('.sidebar .brand'));
+    const refresh = () => {
+      const element = document.querySelector('.sidebar .brand');
+      setTarget(element instanceof HTMLElement ? element : null);
+    };
     refresh();
     const observer = new MutationObserver(refresh);
     observer.observe(document.body, { subtree: true, childList: true });
