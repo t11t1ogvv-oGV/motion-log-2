@@ -140,7 +140,7 @@ const parseDateValue = (value: string) => {
   return `${match[1]}-${String(Number(match[2])).padStart(2, '0')}-${String(Number(match[3])).padStart(2, '0')}`;
 };
 
-const parseOcrDraft = (texts: string[]): OcrDraft => {
+export const parseOcrDraft = (texts: string[]): OcrDraft => {
   const draft = blank();
   const normalized = texts.map(normalizeOcrText);
   const text = normalized.join('\n');
@@ -167,10 +167,7 @@ const parseOcrDraft = (texts: string[]): OcrDraft => {
     /(?:운동\s*시간|운동시간|총\s*시간|duration)\s*[^0-9]{0,80}((?:\d{1,2}:){1,2}\d{2})/i,
     /(?:운동\s*시간|운동시간|총\s*시간|duration)\s*[^0-9]{0,80}(\d+\s*시간\s*\d+\s*분(?:\s*\d+\s*초)?)/i,
   ]);
-  if (!draft.duration) {
-    const durationCandidate = capture(flatText, [/\b((?:\d{1,2}:){1,2}\d{2})\b/i]);
-    if (durationCandidate) draft.duration = durationCandidate;
-  }
+  if (!draft.duration) draft.duration = capture(flatText, [/\b((?:\d{1,2}:){1,2}\d{2})\b/i]);
 
   const pacePatterns = (labels: string[]) => [
     new RegExp(`(?:${labels.join('|')})\\s*[^0-9]{0,70}([0-9]{1,2}\\s*(?:'|:|분)?\\s*[0-9]{2})`, 'i'),
@@ -215,6 +212,54 @@ const parseOcrDraft = (texts: string[]): OcrDraft => {
   draft.elevationLoss = findNearLabel(text, ['하강\s*고도', '고도\s*하강', 'elevation\s*loss', '누적\s*하강'], 0, 10000, /m/i);
 
   return draft;
+};
+
+const loadImage = (file: File) => new Promise<HTMLImageElement>((resolve, reject) => {
+  const url = URL.createObjectURL(file);
+  const image = new Image();
+  image.onload = () => {
+    URL.revokeObjectURL(url);
+    resolve(image);
+  };
+  image.onerror = () => {
+    URL.revokeObjectURL(url);
+    reject(new Error('이미지를 열 수 없습니다.'));
+  };
+  image.src = url;
+});
+
+const renderVariant = async (file: File, mode: 'enhanced' | 'threshold' | 'original') => {
+  const image = await loadImage(file);
+  const maxWidth = 2600;
+  const scale = Math.min(3.5, Math.max(1.8, maxWidth / Math.max(1, image.naturalWidth)));
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
+  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
+  const context = canvas.getContext('2d', { willReadFrequently: true });
+  if (!context) throw new Error('이미지 처리를 시작할 수 없습니다.');
+  context.imageSmoothingEnabled = true;
+  context.imageSmoothingQuality = 'high';
+  context.fillStyle = '#ffffff';
+  context.fillRect(0, 0, canvas.width, canvas.height);
+  context.drawImage(image, 0, 0, canvas.width, canvas.height);
+
+  if (mode === 'original') return canvas;
+
+  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+  const pixels = imageData.data;
+  const contrast = mode === 'threshold' ? 1.7 : 1.45;
+  const threshold = 176;
+  for (let i = 0; i < pixels.length; i += 4) {
+    const luminance = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
+    let value = ((luminance - 128) * contrast) + 128;
+    if (mode === 'threshold') value = value < threshold ? 0 : 255;
+    value = Math.max(0, Math.min(255, value));
+    pixels[i] = value;
+    pixels[i + 1] = value;
+    pixels[i + 2] = value;
+  }
+  context.putImageData(imageData, 0, 0);
+  return canvas;
 };
 
 export const recognizeSamsungHealthImages = async (
@@ -272,52 +317,4 @@ export const recognizeSamsungHealthImages = async (
   } finally {
     await worker.terminate();
   }
-};
-
-const loadImage = (file: File) => new Promise<HTMLImageElement>((resolve, reject) => {
-  const url = URL.createObjectURL(file);
-  const image = new Image();
-  image.onload = () => {
-    URL.revokeObjectURL(url);
-    resolve(image);
-  };
-  image.onerror = () => {
-    URL.revokeObjectURL(url);
-    reject(new Error('이미지를 열 수 없습니다.'));
-  };
-  image.src = url;
-});
-
-const renderVariant = async (file: File, mode: 'enhanced' | 'threshold' | 'original') => {
-  const image = await loadImage(file);
-  const maxWidth = 2600;
-  const scale = Math.min(3.5, Math.max(1.8, maxWidth / Math.max(1, image.naturalWidth)));
-  const canvas = document.createElement('canvas');
-  canvas.width = Math.max(1, Math.round(image.naturalWidth * scale));
-  canvas.height = Math.max(1, Math.round(image.naturalHeight * scale));
-  const context = canvas.getContext('2d', { willReadFrequently: true });
-  if (!context) throw new Error('이미지 처리를 시작할 수 없습니다.');
-  context.imageSmoothingEnabled = true;
-  context.imageSmoothingQuality = 'high';
-  context.fillStyle = '#ffffff';
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-
-  if (mode === 'original') return canvas;
-
-  const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-  const pixels = imageData.data;
-  const contrast = mode === 'threshold' ? 1.7 : 1.45;
-  const threshold = 176;
-  for (let i = 0; i < pixels.length; i += 4) {
-    const luminance = 0.299 * pixels[i] + 0.587 * pixels[i + 1] + 0.114 * pixels[i + 2];
-    let value = ((luminance - 128) * contrast) + 128;
-    if (mode === 'threshold') value = value < threshold ? 0 : 255;
-    value = Math.max(0, Math.min(255, value));
-    pixels[i] = value;
-    pixels[i + 1] = value;
-    pixels[i + 2] = value;
-  }
-  context.putImageData(imageData, 0, 0);
-  return canvas;
 };
