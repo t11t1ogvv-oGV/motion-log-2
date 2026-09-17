@@ -17,8 +17,8 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const versionKey = 'motion-log-direct-test-v6';
-  const url = '/motion-log-data-test.json?v=6';
+  const versionKey = 'motion-log-direct-test-v7';
+  const url = '/motion-log-data-test.json?v=7';
 
   const originalSetItem = Storage.prototype.setItem;
   Storage.prototype.setItem = function(name, value) {
@@ -57,9 +57,9 @@ const bootstrapScript = `
 
   const sameIds = (a, b) => {
     if (a.length !== b.length) return false;
-    const aIds = a.map(row => row.id).sort();
-    const bIds = b.map(row => row.id).sort();
-    return aIds.every((id, i) => id === bIds[i]);
+    const aa = a.map(row => row.id).sort();
+    const bb = b.map(row => row.id).sort();
+    return aa.every((id, i) => id === bb[i]);
   };
 
   const load = async () => {
@@ -72,16 +72,16 @@ const bootstrapScript = `
           if (Array.isArray(parsed)) local = parsed;
         } catch {}
       }
-
       const res = await fetch(url, { cache: 'no-store' });
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const remote = normalize(await res.json());
       const merged = merge(local, remote);
-
       if (!sameIds(local, merged) || local.length === 0) {
         localStorage.setItem(key, JSON.stringify(merged));
         localStorage.setItem(versionKey, String(remote.length));
         setTimeout(() => window.location.reload(), 120);
+      } else {
+        localStorage.setItem(versionKey, String(remote.length));
       }
     } catch (error) {
       console.error('[Motion Log] Samsung Health data sync failed:', error);
