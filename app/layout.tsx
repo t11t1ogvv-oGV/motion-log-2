@@ -17,7 +17,7 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const loadedKey = 'motion-log-direct-test-v1';
+  const loadedKey = 'motion-log-direct-test-v3';
 
   const setStatus = (message, isError = false) => {
     let el = document.getElementById('motion-log-loader-status');
@@ -38,17 +38,29 @@ const bootstrapScript = `
     if (el) el.remove();
   };
 
+  const originalSetItem = Storage.prototype.setItem;
+  Storage.prototype.setItem = function(name, value) {
+    if (name === key && value === '[]') {
+      try {
+        const current = localStorage.getItem(key);
+        const parsed = current ? JSON.parse(current) : null;
+        if (Array.isArray(parsed) && parsed.length > 0) return;
+      } catch {}
+    }
+    return originalSetItem.call(this, name, value);
+  };
+
   const loadDirect = async () => {
     setStatus('최근 60일 삼성 Health 데이터 불러오는 중…');
-    const res = await fetch('/motion-log-data-test.json?v=1', { cache: 'no-store' });
+    const res = await fetch('/motion-log-data-test.json?v=3', { cache: 'no-store' });
     if (!res.ok) throw new Error('test dataset HTTP ' + res.status);
     const data = await res.json();
     if (!Array.isArray(data) || data.length === 0) throw new Error('test dataset is empty');
-    return data.map((row, i) => ({
-      ...row,
-      id: row.id || ('sh-test-' + i),
-      source: row.source || 'Samsung Health',
-    }));
+    if (data.length !== 42) throw new Error('unexpected test record count: ' + data.length + ' (expected 42)');
+    return data.map((row, i) => {
+      if (!row || typeof row !== 'object') throw new Error('test record ' + i + ' is not an object');
+      return { ...row, id: row.id || ('sh-test-' + i), source: row.source || 'Samsung Health' };
+    });
   };
 
   (async () => {
@@ -63,7 +75,7 @@ const bootstrapScript = `
       localStorage.setItem(key, JSON.stringify(data));
       localStorage.setItem(loadedKey, '1');
       setStatus(data.length.toLocaleString('ko-KR') + '개 기록을 불러왔습니다.');
-      window.location.reload();
+      setTimeout(() => window.location.reload(), 150);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       console.error('[Motion Log] direct Samsung Health test import failed:', error);
