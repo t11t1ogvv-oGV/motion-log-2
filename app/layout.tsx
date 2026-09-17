@@ -17,8 +17,8 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const versionKey = 'motion-log-direct-test-v7';
-  const url = '/motion-log-data-test.json?v=7';
+  const versionKey = 'motion-log-direct-test-v8';
+  const url = '/motion-log-data-test.json?v=8';
 
   const originalSetItem = Storage.prototype.setItem;
   Storage.prototype.setItem = function(name, value) {
