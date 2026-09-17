@@ -17,7 +17,9 @@ export const viewport: Viewport = {
 const bootstrapScript = `
 (() => {
   const key = 'motion-log-records-v4';
-  const loadedKey = 'motion-log-direct-test-v1';
+  const loadedKey = 'motion-log-direct-test-v2';
+  const allowedTypes = new Set(['러닝','걷기','자전거','등산','수영','기타']);
+  const numericFields = ['distanceKm','durationSec','calories','steps','avgPaceSecPerKm','bestPaceSecPerKm','avgSpeedKmh','bestSpeedKmh','elevationGainM','elevationLossM','avgHeartRate','maxHeartRate','avgCadence','maxCadence','vo2max'];
 
   const setStatus = (message, isError = false) => {
     let el = document.getElementById('motion-log-loader-status');
@@ -38,17 +40,40 @@ const bootstrapScript = `
     if (el) el.remove();
   };
 
+  const validateAndNormalize = (data) => {
+    if (!Array.isArray(data) || data.length === 0) throw new Error('test dataset is empty');
+    if (data.length !== 42) throw new Error('unexpected test record count: ' + data.length + ' (expected 42)');
+    return data.map((row, i) => {
+      if (!row || typeof row !== 'object') throw new Error('test record ' + i + ' is not an object');
+      const date = String(row.date || '');
+      if (!/^\\d{4}-\\d{2}-\\d{2}$/.test(date)) throw new Error('test record ' + i + ' has invalid date: ' + date);
+      if (!allowedTypes.has(row.type)) throw new Error('test record ' + i + ' has invalid type: ' + row.type);
+      const distanceKm = Number(row.distanceKm);
+      const durationSec = Number(row.durationSec);
+      if (!Number.isFinite(distanceKm) || distanceKm < 0) throw new Error('test record ' + i + ' has invalid distanceKm');
+      if (!Number.isFinite(durationSec) || durationSec < 0) throw new Error('test record ' + i + ' has invalid durationSec');
+      for (const field of numericFields) {
+        if (row[field] != null && (!Number.isFinite(Number(row[field])) || Number(row[field]) < 0)) {
+          throw new Error('test record ' + i + ' has invalid ' + field);
+        }
+      }
+      return {
+        ...row,
+        id: row.id || ('sh-test-' + i),
+        date,
+        distanceKm,
+        durationSec,
+        source: row.source || 'Samsung Health',
+      };
+    });
+  };
+
   const loadDirect = async () => {
     setStatus('최근 60일 삼성 Health 데이터 불러오는 중…');
-    const res = await fetch('/motion-log-data-test.json?v=1', { cache: 'no-store' });
+    const res = await fetch('/motion-log-data-test.json?v=2', { cache: 'no-store' });
     if (!res.ok) throw new Error('test dataset HTTP ' + res.status);
     const data = await res.json();
-    if (!Array.isArray(data) || data.length === 0) throw new Error('test dataset is empty');
-    return data.map((row, i) => ({
-      ...row,
-      id: row.id || ('sh-test-' + i),
-      source: row.source || 'Samsung Health',
-    }));
+    return validateAndNormalize(data);
   };
 
   (async () => {
