@@ -46,3 +46,9 @@ Samsung Health 화면에서 확인되지 않은 값을 임의로 생성하지 �
 개발은 `motion-log-next`에서 검증한 뒤 이상이 없을 때만 `main`으로 병합하고 Vercel Production에 배포한다.
 
 최종 UX polish: 최근 운동 보조 정보 가독성 및 대시보드 달력 컴팩트 레이아웃을 반영했다.
+
+
+## Recent UI update
+
+- Dashboard simplified around calendar, weekly summary, and recent workouts.
+- Analysis separated into Workout Analysis and Statistics & Reports.
