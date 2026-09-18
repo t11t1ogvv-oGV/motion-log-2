@@ -69,10 +69,9 @@ const bootstrapScript = `
       const localRow = localById.get(row.id);
       return localRow?.deletedAt ? { ...row, deletedAt: localRow.deletedAt } : row;
     });
-    const remoteIds = new Set(remote.map(row => row.id));
-    for (const row of local) {
-      if (!remoteIds.has(row.id)) merged.push(row);
-    }
+    // GitHub's workout-data branch is the canonical source.
+    // Keep local-only metadata (notes/deletions) only for records that
+    // still exist remotely; never resurrect records removed from GitHub.
     return merged;
   };
 
