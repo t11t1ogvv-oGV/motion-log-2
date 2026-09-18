@@ -1,6 +1,6 @@
 'use client';
 
-import { ChangeEvent, useEffect, useMemo, useState } from 'react';
+import { ReactNode, useEffect, useMemo, useState } from 'react';
 
 type ActivityType = '러닝'|'걷기'|'자전거'|'등산'|'수영'|'기타';
 type Activity = {
@@ -8,16 +8,15 @@ type Activity = {
   calories?:number; steps?:number; avgPaceSecPerKm?:number; bestPaceSecPerKm?:number;
   avgSpeedKmh?:number; bestSpeedKmh?:number; elevationGainM?:number; elevationLossM?:number; minAltitudeM?:number; maxAltitudeM?:number; uphillDistanceKm?:number; downhillDistanceKm?:number;
   avgHeartRate?:number; maxHeartRate?:number; avgCadence?:number; maxCadence?:number; vo2max?:number;
-  note?:string; source?:string; deletedAt?:string;
+  note?:string; source?:string;
 };
-type Tab='home'|'records'|'analysis'|'trash'|'more';
+type Tab='home'|'records'|'analysis'|'more';
 type SnapshotType = '러닝'|'등산';
 type TrendMetric = 'distance'|'pace'|'heartRate'|'cadence'|'speed'|'duration'|'calories'|'elevationGain'|'elevationLoss';
 type ChartPoint = {date:string; value:number};
 
-const STORAGE='motion-log-records-v4';
 const THEME='motion-log-theme-v4';
-const DATA_URL='/motion-log-data-test.json?v=8';
+const DATA_URL='https://raw.githubusercontent.com/t11t1ogvv-oGV/motion-log-2/workout-data/public/motion-log-data-test.json';
 const TYPES:ActivityType[]=['러닝','걷기','자전거','등산','수영','기타'];
 const SNAPSHOT_TYPES:SnapshotType[]=['러닝','등산'];
 const fmtDate=(d:string)=>{const x=new Date(`${d}T00:00:00`);return `${x.getMonth()+1}월 ${x.getDate()}일`};
@@ -26,6 +25,7 @@ const fmtShortDate=(d:string)=>{const x=new Date(`${d}T00:00:00`);return `${x.ge
 const fmtDur=(s=0)=>{const n=Math.max(0,Math.round(s)),h=Math.floor(n/3600),m=Math.floor(n%3600/60),r=n%60;return h?`${h}시간 ${m}분`:`${m}분 ${String(r).padStart(2,'0')}초`};
 const fmtPace=(s?:number)=>{if(!Number.isFinite(s)||!s||s<0)return '—';const n=Math.max(0,Math.round(s));return `${Math.floor(n/60)}'${String(n%60).padStart(2,'0')}\"/km`};
 const avg=(v:number[])=>{const a=v.filter(Number.isFinite);return a.length?Math.round(a.reduce((x,y)=>x+y,0)/a.length):0};
+const weightedPace=(activities:Activity[])=>{const distance=sum(activities,'distanceKm');const duration=sum(activities,'durationSec');return distance>0?duration/distance:0};
 const sum=(a:Activity[],k:'distanceKm'|'durationSec'|'calories')=>a.reduce((s,x)=>s+(Number(x[k])||0),0);
 const sumField=(a:Activity[],get:(x:Activity)=>number)=>a.reduce((s,x)=>s+(Number(get(x))||0),0);
 const dayKey=(d:Date)=>`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
@@ -88,7 +88,8 @@ const formatTrendValue=(metric:TrendMetric,value:number)=>{
 };
 
 function Metric({label,value,unit}:{label:string;value:string|number;unit?:string}){return <div className="metric"><span>{label}</span><strong>{value}{unit&&<small>{unit}</small>}</strong></div>}
-function RecordCard({a,onOpen,onTrash}:{a:Activity;onOpen:()=>void;onTrash:()=>void}){return <article className="record-card" onClick={onOpen}><div><div className="record-date"><b>{fmtDate(a.date)}</b><span>{a.type}</span></div><div className="record-main"><b>{a.distanceKm.toFixed(2)}<small> km</small></b><span>{fmtDur(a.durationSec)} · {fmtPace(a.avgPaceSecPerKm)}</span></div></div><div className="record-tags">{a.avgHeartRate&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>심박 {Math.round(a.avgHeartRate)} bpm</span>}{a.avgCadence&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>케이던스 {Math.round(a.avgCadence)} spm</span>}{a.calories&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>{Math.round(a.calories)} kcal</span>}{a.vo2max&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>VO₂ {a.vo2max}</span>}</div><button className="icon-button" aria-label="휴지통 이동" onClick={e=>{e.stopPropagation();onTrash()}}>×</button></article>}
+function DetailSection({title,children}:{title:string;children:ReactNode}){return <section className="detail-section"><h3>{title}</h3><div className="detail-grid">{children}</div></section>}
+function RecordCard({a,onOpen}:{a:Activity;onOpen:()=>void}){return <article className="record-card" onClick={onOpen}><div><div className="record-date"><b>{fmtDate(a.date)}</b><span>{a.type}</span></div><div className="record-main"><b>{a.distanceKm.toFixed(2)}<small> km</small></b><span>{fmtDur(a.durationSec)} · {fmtPace(a.avgPaceSecPerKm)}</span></div></div><div className="record-tags">{a.avgHeartRate&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>심박 {Math.round(a.avgHeartRate)} bpm</span>}{a.avgCadence&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>케이던스 {Math.round(a.avgCadence)} spm</span>}{a.calories&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>{Math.round(a.calories)} kcal</span>}{a.vo2max&&<span style={{fontSize:10,color:'var(--text)',fontWeight:650,border:'1px solid var(--line)'}}>VO₂ {a.vo2max}</span>}</div></article>}
 
 function TrendChart({points,metric}:{points:ChartPoint[];metric:TrendMetric}){
  if(!points.length)return <div className="empty" style={{marginTop:10,padding:28}}>선택한 기간에 표시할 데이터가 없습니다.</div>;
@@ -114,13 +115,12 @@ function RunningEfficiency({activities}:{activities:Activity[]}){
  const xp=(v:number)=>l+(v-pmin)/(Math.max(1,pmax-pmin))*iw; const yh=(v:number)=>t+(1-(v-hmin)/(Math.max(1,hmax-hmin)))*ih;
  return <div style={{marginTop:12}}><div className="eff-summary">최근 {points.length}회 · 페이스가 빠를수록 왼쪽, 심박이 낮을수록 아래</div><div className="eff-chart"><svg viewBox={`0 0 ${w} ${h}`} style={{width:'100%',display:'block'}} role="img" aria-label="러닝 페이스와 평균 심박 산점도">{[0,.25,.5,.75,1].map((g,i)=><line key={i} x1={l} y1={t+g*ih} x2={w-r} y2={t+g*ih} stroke="var(--line)" strokeWidth="1"/>)}{points.map(a=><circle key={a.id} cx={xp(a.avgPaceSecPerKm||0)} cy={yh(a.avgHeartRate||0)} r="4" fill="var(--accent)"/>)}<line x1={l} y1={h-b} x2={w-r} y2={h-b} stroke="var(--muted)"/><line x1={l} y1={t} x2={l} y2={h-b} stroke="var(--muted)"/></svg></div><div className="eff-caption">최근 기록: {fmtPace(points[points.length-1].avgPaceSecPerKm)} · {Math.round(points[points.length-1].avgHeartRate||0)} bpm</div></div>;
 }
-function ComparisonItem({label,current,previous,formatter}:{label:string;current:number;previous:number;formatter:(v:number)=>string}){const delta=current-previous;return <div style={{background:'var(--surface2)',borderRadius:10,padding:'10px 11px',border:'1px solid var(--line)'}}><span style={{display:'block',fontSize:8,color:'var(--muted)'}}>{label}</span><b style={{display:'block',fontSize:14,marginTop:4,color:'var(--text)'}}>{formatter(current)}</b><span style={{display:'block',fontSize:8,color:'var(--muted)',marginTop:3}}>이전 {formatter(previous)} · 변화 {delta>0?'+':''}{formatter(delta)}</span></div>}
+function ComparisonItem({label,current,previous,formatter}:{label:string;current:number;previous:number;formatter:(v:number)=>string}){const delta=current-previous;const pct=previous?delta/Math.abs(previous)*100:(current?100:0);return <div className="comparison-card"><span className="comparison-label">{label}</span><div className="comparison-current">{formatter(current)}</div><div className="comparison-previous">이전 {formatter(previous)}</div><div className="comparison-delta">변화 {delta>0?'+':''}{formatter(delta)} <em>({pct>0?'+':''}{pct.toFixed(1)}%)</em></div></div>}
 
 export default function Home(){
  const [tab,setTab]=useState<Tab>('home');
  const [acts,setActs]=useState<Activity[]>([]);
  const [selected,setSelected]=useState<Activity|null>(null);
- const [confirm,setConfirm]=useState<{kind:'trash'|'restore'|'delete';id:string}|null>(null);
  const [dark,setDark]=useState(false);
  const [period,setPeriod]=useState<7|30|90|365>(30);
  const [query,setQuery]=useState('');
@@ -133,33 +133,30 @@ export default function Home(){
  const [customStart,setCustomStart]=useState('');
  const [customEnd,setCustomEnd]=useState('');
  const [syncStatus,setSyncStatus]=useState('자동 동기화 대기');
- const [importStatus,setImportStatus]=useState('');
+ const [syncAt,setSyncAt]=useState('');
  const [calendarDate,setCalendarDate]=useState('');
  const [snapshotType,setSnapshotType]=useState<SnapshotType>('러닝');
  const [trendMetric,setTrendMetric]=useState<TrendMetric>('distance');
 
- const mergeRecords=(local:Activity[],remote:Activity[])=>{const localById=new Map(local.map(a=>[a.id,a]));return remote.map(a=>{const l=localById.get(a.id);return l?{...a,...(l.note?{note:l.note}:{}),...(l.deletedAt?{deletedAt:l.deletedAt}:{} )}:a})};
  const fetchRemote=async()=>{const res=await fetch(DATA_URL,{cache:'no-store'});if(!res.ok)throw new Error(`HTTP ${res.status}`);const raw=await res.json();if(!Array.isArray(raw)||!raw.length)throw new Error('서버 데이터가 비어 있습니다.');return raw.map(normalizeRecord)};
- const syncNow=async()=>{setSyncStatus('GitHub 데이터 확인 중…');try{const remote=await fetchRemote();const merged=mergeRecords(acts.slice(),remote);setActs(merged);setSyncStatus(`GitHub ${remote.length}건 · 현재 ${merged.length}건`)}catch(e){setSyncStatus(`동기화 실패: ${e instanceof Error?e.message:String(e)}`)}};
+ const markSynced=(remoteCount:number)=>{setSyncStatus(`GitHub ${remoteCount}건 · 화면 ${remoteCount}건`);setSyncAt(new Intl.DateTimeFormat('ko-KR',{hour:'2-digit',minute:'2-digit'}).format(new Date()))};
+ const syncNow=async()=>{setSyncStatus('GitHub 최신 데이터 확인 중…');try{const remote=await fetchRemote();setActs(remote);markSynced(remote.length)}catch(e){setSyncStatus(`동기화 실패: ${e instanceof Error?e.message:String(e)}`)}};
 
- useEffect(()=>{try{const raw=localStorage.getItem(STORAGE);if(raw){const parsed=JSON.parse(raw);if(Array.isArray(parsed))setActs(parsed.map(normalizeRecord))}const t=localStorage.getItem(THEME);if(t)setDark(t==='dark')}catch{setActs([])}},[]);
- useEffect(()=>{localStorage.setItem(STORAGE,JSON.stringify(acts));localStorage.setItem(THEME,dark?'dark':'light')},[acts,dark]);
- useEffect(()=>{let cancelled=false;syncOnMount();async function syncOnMount(){try{const remote=await fetchRemote();if(cancelled)return;const raw=localStorage.getItem(STORAGE);let local:Activity[]=[];if(raw){try{const p=JSON.parse(raw);if(Array.isArray(p))local=p.map(normalizeRecord)}catch{}}const merged=mergeRecords(local,remote);if(!cancelled){setActs(merged);setSyncStatus(`GitHub ${remote.length}건 · 현재 ${merged.length}건`)}}catch{if(!cancelled)setSyncStatus('자동 동기화 실패 — 로컬 기록 유지')}}return()=>{cancelled=true}},[]);
-
- const active=useMemo(()=>acts.filter(a=>!a.deletedAt).sort((a,b)=>b.date.localeCompare(a.date)),[acts]);
- const trash=useMemo(()=>acts.filter(a=>a.deletedAt).sort((a,b)=>String(b.deletedAt).localeCompare(String(a.deletedAt))),[acts]);
- const latest=active[0];
+ useEffect(()=>{try{const t=localStorage.getItem(THEME);if(t)setDark(t==='dark')}catch{}},[]);
+ useEffect(()=>{localStorage.setItem(THEME,dark?'dark':'light')},[dark]);
+ useEffect(()=>{let cancelled=false;syncOnMount();async function syncOnMount(){try{const remote=await fetchRemote();if(!cancelled){setActs(remote);markSynced(remote.length)}}catch{if(!cancelled)setSyncStatus('자동 동기화 실패')}}return()=>{cancelled=true}},[]);
+ const active=useMemo(()=>acts.slice().sort((a,b)=>b.date.localeCompare(a.date)),[acts]);
  const now=new Date();
  const today=dayKey(now);
  const year=now.getFullYear();
  const yearActivities=active.filter(a=>a.date.startsWith(String(year)));
  const week=active.filter(a=>{const d=new Date();d.setDate(d.getDate()-6);return a.date>=dayKey(d)});
  const since=useMemo(()=>{const d=new Date();d.setDate(d.getDate()-(period-1));return dayKey(d)},[period]);
- const scoped=active.filter(a=>a.date>=since);
  const analysisScoped=active.filter(a=>{const typeOk=analysisType==='전체'||a.type===analysisType;if(customMode&&customStart&&customEnd)return typeOk&&a.date>=customStart&&a.date<=customEnd;return typeOk&&a.date>=since});
  const allDist=sum(active,'distanceKm');
  const weekDist=sum(week,'distanceKm');
- const weekAvgPace=avg(week.map(a=>a.avgPaceSecPerKm||NaN));
+ const weekAvgPace=weightedPace(week);
+ const weekAvgHr=avg(week.map(a=>a.avgHeartRate||NaN));
  const yearDist=sum(yearActivities,'distanceKm');
  const runs=active.filter(a=>a.type==='러닝');
  const hikes=active.filter(a=>a.type==='등산');
@@ -169,7 +166,7 @@ export default function Home(){
  const currentMonth=useMemo(()=>{const d=new Date(year,now.getMonth()+monthOffset,1);return {year:d.getFullYear(),month:d.getMonth()}},[year,monthOffset,now.getMonth()]);
  const currentMonthActivities=useMemo(()=>{const prefix=`${currentMonth.year}-${String(currentMonth.month+1).padStart(2,'0')}-`;return active.filter(a=>a.date.startsWith(prefix))},[active,currentMonth]);
  const currentMonthDist=sum(currentMonthActivities,'distanceKm');
- const currentMonthPace=avg(currentMonthActivities.map(a=>a.avgPaceSecPerKm||NaN));
+ const currentMonthPace=weightedPace(currentMonthActivities);
  const currentMonthTime=sum(currentMonthActivities,'durationSec');
  const monthDays=useMemo(()=>{const first=new Date(currentMonth.year,currentMonth.month,1);const last=new Date(currentMonth.year,currentMonth.month+1,0);const start=(first.getDay()+6)%7;const days:number[]=[];for(let i=0;i<start;i++)days.push(0);for(let d=1;d<=last.getDate();d++)days.push(d);return days},[currentMonth]);
  const daySet=useMemo(()=>new Set(active.map(a=>a.date)),[active]);
@@ -195,14 +192,12 @@ export default function Home(){
  const previousAnalysisScoped=active.filter(a=>{const typeOk=analysisType==='전체'||a.type===analysisType;return typeOk&&a.date>=previousAnalysisStart&&a.date<=previousAnalysisEnd});
  const trendPoints=useMemo(()=>aggregateTrend(analysisScoped,trendMetric),[analysisScoped,trendMetric]);
  const trendOptions=TREND_OPTIONS[analysisType==='러닝'||analysisType==='등산'?analysisType:'전체'];
- const applyConfirm=()=>{if(!confirm)return;setActs(prev=>confirm.kind==='delete'?prev.filter(a=>a.id!==confirm.id):prev.map(a=>a.id===confirm.id?(confirm.kind==='trash'?{...a,deletedAt:new Date().toISOString()}:{...a,deletedAt:undefined}):a));setSelected(null);setConfirm(null)};
  const exportJson=()=>{const b=new Blob([JSON.stringify(acts,null,2)],{type:'application/json'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`motion-log-backup-${today}.json`;a.click();URL.revokeObjectURL(u)};
  const exportCsv=()=>{const cols=['id','date','type','distanceKm','durationSec','calories','steps','avgPaceSecPerKm','bestPaceSecPerKm','avgSpeedKmh','bestSpeedKmh','elevationGainM','elevationLossM','avgHeartRate','maxHeartRate','avgCadence','maxCadence','vo2max','minAltitudeM','maxAltitudeM','uphillDistanceKm','downhillDistanceKm','note','source'];const esc=(v:any)=>`\"${String(v??'').replaceAll('\\"','\\"\\"')}\"`;const body=[cols.join(','),...active.map(a=>cols.map(c=>esc((a as any)[c])).join(','))].join('\n');const b=new Blob(['\ufeff'+body],{type:'text/csv;charset=utf-8'}),u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download=`motion-log-${today}.csv`;a.click();URL.revokeObjectURL(u)};
- const importJson=(e:ChangeEvent<HTMLInputElement>)=>{const file=e.target.files?.[0];if(!file)return;setImportStatus('백업 파일 확인 중…');const r=new FileReader();r.onload=()=>{try{const parsed=JSON.parse(String(r.result));if(!Array.isArray(parsed))throw new Error('배열 형식이 아닙니다.');const incoming=parsed.map(normalizeRecord);const merged=mergeRecords(acts,incoming);setActs(merged);setImportStatus(`복원 완료 · ${incoming.length}건 확인 / 현재 ${merged.length}건`)}catch(err){setImportStatus(`복원 실패: ${err instanceof Error?err.message:String(err)}`)}};r.readAsText(file);e.target.value=''};
  const jumpCalendarDay=(key:string)=>{setCalendarDate(key);setQuery(key);setTypeFilter('전체');setTab('records')};
- const title=tab==='home'?'운동 대시보드':tab==='records'?'운동 기록':tab==='analysis'?'분석':tab==='trash'?'휴지통':'설정';
+ const title=tab==='home'?'운동 대시보드':tab==='records'?'운동 기록':tab==='analysis'?'분석':'설정';
  return <main className={dark?'app dark':'app'}>
-  <aside className="sidebar"><div className="brand"><span>MOTION</span> LOG</div><div className="brand-sub">GALAXY WATCH FITNESS ARCHIVE</div><nav>{[['home','대시보드'],['records','운동 기록'],['analysis','분석'],['trash',`휴지통${trash.length?` (${trash.length})`:''}`],['more','설정']].map(([k,l])=><button key={k} className={tab===k?'active':''} onClick={()=>setTab(k as Tab)}>{l}</button>)}</nav><div className="sidebar-foot"><button className="ghost" onClick={()=>setDark(v=>!v)}>{dark?'☼ 라이트 모드':'◐ 다크 모드'}</button><small>Samsung Health → Motion Log</small></div></aside>
+  <aside className="sidebar"><div className="brand"><span>MOTION</span> LOG</div><div className="brand-sub">GALAXY WATCH FITNESS ARCHIVE</div><nav>{[['home','대시보드'],['records','운동 기록'],['analysis','분석'],['more','설정']].map(([k,l])=><button key={k} className={tab===k?'active':''} onClick={()=>setTab(k as Tab)}>{l}</button>)}</nav><div className="sidebar-foot"><button className="ghost" onClick={()=>setDark(v=>!v)}>{dark?'☼ 라이트 모드':'◐ 다크 모드'}</button><small>Samsung Health → Motion Log</small></div></aside>
   <section className="content"><header className="topbar"><div><div className="eyebrow">MOTION LOG</div><h1>{title}</h1></div><div className="status-pill">{active.length.toLocaleString()} RECORDS</div></header>
    {tab==='home'&&<>
     <section className="dashboard-calendar panel">
@@ -216,16 +211,15 @@ export default function Home(){
     </section>
     <section className="home-week-summary panel">
       <div className="section-head" style={{marginTop:0}}><div><div className="eyebrow">THIS WEEK</div><h3>이번 주</h3></div></div>
-      <div className="home-week-grid"><Metric label="운동" value={week.length} unit="회"/><Metric label="거리" value={weekDist.toFixed(1)} unit="km"/><Metric label="평균 페이스" value={weekAvgPace?fmtPace(weekAvgPace):'—'}/></div>
+      <div className="home-week-grid"><Metric label="운동" value={week.length} unit="회"/><Metric label="거리" value={weekDist.toFixed(1)} unit="km"/><Metric label="평균 페이스" value={weekAvgPace?fmtPace(weekAvgPace):'—'}/><Metric label="평균 심박" value={weekAvgHr||'—'} unit={weekAvgHr?'bpm':undefined}/></div>
     </section>
     <div className="section-head home-recent-head"><div><div className="eyebrow">RECENT</div><h3>최근 운동</h3></div><button className="text-btn" onClick={()=>setTab('records')}>전체 보기 →</button></div>
     <div className="records-list home-recent-list">{active.slice(0,5).map(a=><article className="home-recent-card" key={a.id} onClick={()=>setSelected(a)}>
       <div className="home-recent-main"><div className="record-date"><b>{fmtDate(a.date)}</b><span>{a.type}</span></div><div className="record-main"><b>{a.distanceKm.toFixed(2)}<small> km</small></b><span>{fmtDur(a.durationSec)} · {fmtPace(a.avgPaceSecPerKm)}</span></div></div>
       <div className="record-tags">{a.avgHeartRate&&<span>심박 {Math.round(a.avgHeartRate)}</span>}{a.avgCadence&&<span>케이던스 {Math.round(a.avgCadence)}</span>}{a.calories&&<span>{Math.round(a.calories)} kcal</span>}</div>
-      <button className="icon-button" aria-label="휴지통 이동" onClick={e=>{e.stopPropagation();setConfirm({kind:'trash',id:a.id})}}>×</button>
     </article>)}</div>
    </>}
-   {tab==='records'&&<><div className="section-head"><div><div className="eyebrow">ARCHIVE</div><h3>운동 기록</h3></div><span className="count-pill">총 {active.length.toLocaleString()}회 · {allDist.toFixed(1)} km</span></div><div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,marginBottom:10}}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="날짜·운동종류·메모 검색" style={{width:'100%',padding:'11px 12px',border:'1px solid var(--line)',borderRadius:11,background:'var(--surface)',color:'var(--text)',outline:'none'}}/><select value={sort} onChange={e=>setSort(e.target.value as 'latest'|'distance'|'pace')} style={{padding:'0 10px',border:'1px solid var(--line)',borderRadius:11,background:'var(--surface)',color:'var(--text)'}}><option value="latest">최신순</option><option value="distance">거리순</option><option value="pace">페이스순</option></select></div><div className="period-tabs">{(['전체',...TYPES] as const).map(t=><button key={t} className={typeFilter===t?'active':''} onClick={()=>setTypeFilter(t)}>{t}</button>)}</div>{calendarDate&&<div className="trash-note">선택 날짜: <b>{fmtFullDate(calendarDate)}</b> · 검색창에서 날짜를 지우면 전체 기록을 다시 볼 수 있습니다.</div>}<div className="records-list">{filtered.map(a=><RecordCard key={a.id} a={a} onOpen={()=>setSelected(a)} onTrash={()=>setConfirm({kind:'trash',id:a.id})}/>)}</div>{!filtered.length&&<div className="empty">조건에 맞는 기록이 없습니다.</div>}</>}
+   {tab==='records'&&<><div className="section-head"><div><div className="eyebrow">ARCHIVE</div><h3>운동 기록</h3></div><span className="count-pill">총 {active.length.toLocaleString()}회 · {allDist.toFixed(1)} km</span></div><div style={{display:'grid',gridTemplateColumns:'1fr auto',gap:8,marginBottom:10}}><input value={query} onChange={e=>setQuery(e.target.value)} placeholder="날짜·운동종류·메모 검색" style={{width:'100%',padding:'11px 12px',border:'1px solid var(--line)',borderRadius:11,background:'var(--surface)',color:'var(--text)',outline:'none'}}/><select value={sort} onChange={e=>setSort(e.target.value as 'latest'|'distance'|'pace')} style={{padding:'0 10px',border:'1px solid var(--line)',borderRadius:11,background:'var(--surface)',color:'var(--text)'}}><option value="latest">최신순</option><option value="distance">거리순</option><option value="pace">페이스순</option></select></div><div className="period-tabs">{(['전체',...TYPES] as const).map(t=><button key={t} className={typeFilter===t?'active':''} onClick={()=>setTypeFilter(t)}>{t}</button>)}</div>{calendarDate&&<div className="filter-note">선택 날짜: <b>{fmtFullDate(calendarDate)}</b> · 검색창에서 날짜를 지우면 전체 기록을 다시 볼 수 있습니다.</div>}<div className="records-list">{filtered.map(a=><RecordCard key={a.id} a={a} onOpen={()=>setSelected(a)}/>)}</div>{!filtered.length&&<div className="empty">조건에 맞는 기록이 없습니다.</div>}</>}
    {tab==='analysis'&&<>
     <div className="analysis-switch"><button className={analysisView==='workout'?'active':''} onClick={()=>setAnalysisView('workout')}>운동 분석</button><button className={analysisView==='report'?'active':''} onClick={()=>setAnalysisView('report')}>통계·리포트</button></div>
     {analysisView==='workout'&&<>
@@ -247,11 +241,10 @@ export default function Home(){
       <section className="panel analysis-section"><div className="eyebrow">RECENT PERFORMANCE</div><h3>최근 성과</h3><div className="report-recent-list">{active.slice(0,5).map(a=><button key={a.id} className="report-recent-row" onClick={()=>setSelected(a)}><span>{fmtDate(a.date)} · {a.type}</span><b>{a.distanceKm.toFixed(2)} km · {fmtPace(a.avgPaceSecPerKm)}</b></button>)}</div></section>
     </>}
    </>}
-   {tab==='trash'&&<><div className="trash-note">삭제한 기록을 복원하거나 영구 삭제할 수 있습니다.</div><div className="records-list">{trash.map(a=><article className="trash-card" key={a.id}><div><b>{fmtDate(a.date)} · {a.type}</b><span>{a.distanceKm.toFixed(2)} km · {fmtDur(a.durationSec)}</span></div><div><button className="secondary" onClick={()=>setConfirm({kind:'restore',id:a.id})}>복원</button><button className="danger" onClick={()=>setConfirm({kind:'delete',id:a.id})}>영구 삭제</button></div></article>)}</div>{!trash.length&&<div className="empty">휴지통이 비어 있습니다.</div>}</>}
-   {tab==='more'&&<><section className="panel settings-panel"><div className="eyebrow">SYNC</div><h3>GitHub 데이터 동기화</h3><p>웹에서 사진을 업로드하지 않습니다. GitHub에 저장된 Motion Log 데이터셋을 브라우저 캐시와 ID 기준으로 병합합니다.</p><div className="actions"><button className="primary" onClick={syncNow}>지금 동기화</button><span style={{alignSelf:'center',fontSize:9,color:'var(--muted)'}}>{syncStatus}</span></div></section><section className="panel settings-panel"><div className="eyebrow">BACKUP</div><h3>데이터 백업 / 복원</h3><p>JSON은 운동 기록 전체 복원용, CSV는 엑셀/분석용입니다.</p><div className="actions"><button className="secondary" onClick={exportJson}>JSON 내보내기</button><button className="secondary" onClick={exportCsv}>CSV 내보내기</button><label className="secondary file-btn">JSON 복원<input type="file" accept="application/json,.json" onChange={importJson}/></label></div>{importStatus&&<div className="detail-note">{importStatus}</div>}</section><section className="panel settings-panel"><div className="eyebrow">SOURCE</div><h3>운동 입력 흐름</h3><p>Galaxy Watch → Samsung Health → 캡처 → ChatGPT 프로젝트의 운동 대화 → 기록 추출·분석 → GitHub 데이터셋 반영 → Motion Log 조회.</p></section><section className="panel settings-panel"><div className="eyebrow">MAINTENANCE</div><h3>화면 테마</h3><button className="secondary" onClick={()=>setDark(v=>!v)}>{dark?'라이트 모드로 전환':'다크 모드로 전환'}</button></section></>}
+   {tab==='more'&&<><section className="panel settings-panel"><div className="eyebrow">DATA SYNC</div><h3>GitHub 최신 데이터</h3><p>운동 기록의 기준은 GitHub입니다. 아래 버튼은 최신 데이터를 다시 불러와 현재 화면에 반영합니다.</p><div className="sync-status-row"><button className="primary" onClick={syncNow}>최신 데이터 불러오기</button><div><b>{syncStatus}</b><span>{syncAt?('마지막 확인 '+syncAt):'아직 확인하지 않음'}</span></div></div></section><section className="panel settings-panel"><div className="eyebrow">EXPORT</div><h3>데이터 내보내기</h3><p>JSON은 전체 기록 백업용, CSV는 엑셀/분석용입니다.</p><div className="actions"><button className="secondary" onClick={exportJson}>JSON 내보내기</button><button className="secondary" onClick={exportCsv}>CSV 내보내기</button></div></section><section className="panel settings-panel"><div className="eyebrow">SOURCE</div><h3>운동 입력 흐름</h3><p>Galaxy Watch → Samsung Health → 캡처 → ChatGPT 프로젝트의 운동 대화 → 기록 추출·분석 → GitHub 데이터셋 반영 → Motion Log 조회.</p></section><section className="panel settings-panel"><div className="eyebrow">MAINTENANCE</div><h3>화면 테마</h3><button className="secondary" onClick={()=>setDark(v=>!v)}>{dark?'라이트 모드로 전환':'다크 모드로 전환'}</button></section></>}
   </section>
-  <nav className="bottom-nav">{[['home','⌂','홈'],['records','▤','기록'],['analysis','⌁','분석'],['trash','♜','휴지통'],['more','⋯','설정']].map(([k,i,l])=><button key={k} className={tab===k?'active':''} onClick={()=>setTab(k as Tab)}><span>{i}</span><small>{l}</small></button>)}</nav>
-  {selected&&<div className="modal-backdrop" onClick={()=>setSelected(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="modal-head"><div><div className="eyebrow">ACTIVITY DETAIL</div><h2>{selected.type} · {selected.distanceKm.toFixed(2)} km</h2><p>{fmtFullDate(selected.date)} · {fmtDur(selected.durationSec)}</p></div><button className="close" onClick={()=>setSelected(null)}>×</button></div><div className="metric-grid"><Metric label="평균 페이스" value={fmtPace(selected.avgPaceSecPerKm)}/><Metric label="최고 페이스" value={fmtPace(selected.bestPaceSecPerKm)}/><Metric label="평균 속도" value={selected.avgSpeedKmh?selected.avgSpeedKmh.toFixed(1):'—'} unit={selected.avgSpeedKmh?'km/h':undefined}/><Metric label="최고 속도" value={selected.bestSpeedKmh?selected.bestSpeedKmh.toFixed(1):'—'} unit={selected.bestSpeedKmh?'km/h':undefined}/><Metric label="평균 심박" value={selected.avgHeartRate?Math.round(selected.avgHeartRate):'—'} unit={selected.avgHeartRate?'bpm':undefined}/><Metric label="최대 심박" value={selected.maxHeartRate?Math.round(selected.maxHeartRate):'—'} unit={selected.maxHeartRate?'bpm':undefined}/><Metric label="케이던스" value={selected.avgCadence?Math.round(selected.avgCadence):'—'} unit={selected.avgCadence?'spm':undefined}/><Metric label="최대 케이던스" value={selected.maxCadence?Math.round(selected.maxCadence):'—'} unit={selected.maxCadence?'spm':undefined}/><Metric label="칼로리" value={selected.calories?Math.round(selected.calories):'—'} unit={selected.calories?'kcal':undefined}/><Metric label="걸음수" value={selected.steps?Math.round(selected.steps).toLocaleString():'—'}/><Metric label="VO₂ Max" value={selected.vo2max??'—'}/><Metric label="고도 상승" value={selected.elevationGainM?selected.elevationGainM.toFixed(1):'—'} unit={selected.elevationGainM?'m':undefined}/><Metric label="고도 하강" value={selected.elevationLossM?selected.elevationLossM.toFixed(1):'—'} unit={selected.elevationLossM?'m':undefined}/></div>{selected.note&&<div className="detail-note">메모: {selected.note}</div>}<div className="modal-actions"><button className="danger" onClick={()=>setConfirm({kind:'trash',id:selected.id})}>휴지통으로 이동</button><button className="primary" onClick={()=>setSelected(null)}>닫기</button></div></div></div>}
-  {confirm&&<div className="modal-backdrop" onClick={()=>setConfirm(null)}><div className="modal confirm" onClick={e=>e.stopPropagation()}><div className="eyebrow">CONFIRM ACTION</div><h2>{confirm.kind==='trash'?'휴지통으로 이동':confirm.kind==='restore'?'기록 복원':'영구 삭제'}</h2><p>{confirm.kind==='trash'?'선택한 운동 기록을 휴지통으로 이동합니다.':confirm.kind==='restore'?'휴지통의 기록을 다시 활성화합니다.':'영구 삭제한 기록은 이 브라우저에서 복구할 수 없습니다.'}</p><div className="modal-actions"><button className="secondary" onClick={()=>setConfirm(null)}>취소</button><button className={confirm.kind==='delete'?'danger':'primary'} onClick={applyConfirm}>{confirm.kind==='trash'?'휴지통으로':confirm.kind==='restore'?'복원':'영구 삭제'}</button></div></div></div>}
+  <nav className="bottom-nav">{[['home','⌂','홈'],['records','▤','기록'],['analysis','⌁','분석'],['more','⋯','설정']].map(([k,i,l])=><button key={k} className={tab===k?'active':''} onClick={()=>setTab(k as Tab)}><span>{i}</span><small>{l}</small></button>)}</nav>
+  {selected&&<div className="modal-backdrop" onClick={()=>setSelected(null)}><div className="modal" onClick={e=>e.stopPropagation()}><div className="modal-head"><div><div className="eyebrow">ACTIVITY DETAIL</div><h2>{selected.type} · {selected.distanceKm.toFixed(2)} km</h2><p>{fmtFullDate(selected.date)} · {fmtDur(selected.durationSec)}</p></div><button className="close" onClick={()=>setSelected(null)}>×</button></div><DetailSection title="기본 기록"><Metric label="평균 페이스" value={fmtPace(selected.avgPaceSecPerKm)}/><Metric label="최고 페이스" value={fmtPace(selected.bestPaceSecPerKm)}/><Metric label="평균 속도" value={selected.avgSpeedKmh?selected.avgSpeedKmh.toFixed(1):'—'} unit={selected.avgSpeedKmh?'km/h':undefined}/><Metric label="최고 속도" value={selected.bestSpeedKmh?selected.bestSpeedKmh.toFixed(1):'—'} unit={selected.bestSpeedKmh?'km/h':undefined}/></DetailSection><DetailSection title="심박"><Metric label="평균 심박" value={selected.avgHeartRate?Math.round(selected.avgHeartRate):'—'} unit={selected.avgHeartRate?'bpm':undefined}/><Metric label="최대 심박" value={selected.maxHeartRate?Math.round(selected.maxHeartRate):'—'} unit={selected.maxHeartRate?'bpm':undefined}/></DetailSection><DetailSection title="운동 정보"><Metric label="케이던스" value={selected.avgCadence?Math.round(selected.avgCadence):'—'} unit={selected.avgCadence?'spm':undefined}/><Metric label="최대 케이던스" value={selected.maxCadence?Math.round(selected.maxCadence):'—'} unit={selected.maxCadence?'spm':undefined}/><Metric label="칼로리" value={selected.calories?Math.round(selected.calories):'—'} unit={selected.calories?'kcal':undefined}/><Metric label="걸음수" value={selected.steps?Math.round(selected.steps).toLocaleString():'—'}/><Metric label="VO₂ Max" value={selected.vo2max??'—'}/></DetailSection><DetailSection title="고도"><Metric label="고도 상승" value={selected.elevationGainM?selected.elevationGainM.toFixed(1):'—'} unit={selected.elevationGainM?'m':undefined}/><Metric label="고도 하강" value={selected.elevationLossM?selected.elevationLossM.toFixed(1):'—'} unit={selected.elevationLossM?'m':undefined}/><Metric label="최저 고도" value={selected.minAltitudeM??'—'} unit={selected.minAltitudeM!==undefined?'m':undefined}/><Metric label="최고 고도" value={selected.maxAltitudeM??'—'} unit={selected.maxAltitudeM!==undefined?'m':undefined}/><Metric label="오르막 거리" value={selected.uphillDistanceKm??'—'} unit={selected.uphillDistanceKm!==undefined?'km':undefined}/><Metric label="내리막 거리" value={selected.downhillDistanceKm??'—'} unit={selected.downhillDistanceKm!==undefined?'km':undefined}/></DetailSection>{selected.note&&<div className="detail-note">메모: {selected.note}</div>}<div className="modal-actions"><button className="primary" onClick={()=>setSelected(null)}>닫기</button></div></div></div>}
+
  </main>;
 }
