@@ -23,7 +23,6 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body>
-        <script dangerouslySetInnerHTML={{ __html: bootstrapScript }} />
         {children}
         <MotionLogBrand />
       </body>
