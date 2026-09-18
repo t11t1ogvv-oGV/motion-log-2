@@ -138,7 +138,7 @@ export default function Home(){
  const [snapshotType,setSnapshotType]=useState<SnapshotType>('러닝');
  const [trendMetric,setTrendMetric]=useState<TrendMetric>('distance');
 
- const mergeRecords=(local:Activity[],remote:Activity[])=>{const localById=new Map(local.map(a=>[a.id,a]));const merged=remote.map(a=>{const l=localById.get(a.id);return l?{...a,...(l.note?{note:l.note}:{}),...(l.deletedAt?{deletedAt:l.deletedAt}:{} )}:a});const remoteIds=new Set(remote.map(a=>a.id));for(const a of local)if(!remoteIds.has(a.id))merged.push(a);return merged};
+ const mergeRecords=(local:Activity[],remote:Activity[])=>{const localById=new Map(local.map(a=>[a.id,a]));return remote.map(a=>{const l=localById.get(a.id);return l?{...a,...(l.note?{note:l.note}:{}),...(l.deletedAt?{deletedAt:l.deletedAt}:{} )}:a})};
  const fetchRemote=async()=>{const res=await fetch(DATA_URL,{cache:'no-store'});if(!res.ok)throw new Error(`HTTP ${res.status}`);const raw=await res.json();if(!Array.isArray(raw)||!raw.length)throw new Error('서버 데이터가 비어 있습니다.');return raw.map(normalizeRecord)};
  const syncNow=async()=>{setSyncStatus('GitHub 데이터 확인 중…');try{const remote=await fetchRemote();const merged=mergeRecords(acts.slice(),remote);setActs(merged);setSyncStatus(`GitHub ${remote.length}건 · 현재 ${merged.length}건`)}catch(e){setSyncStatus(`동기화 실패: ${e instanceof Error?e.message:String(e)}`)}};
 
