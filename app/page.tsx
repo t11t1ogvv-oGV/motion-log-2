@@ -150,7 +150,7 @@ export default function Home(){
  const today=dayKey(now);
  const year=now.getFullYear();
  const yearActivities=active.filter(a=>a.date.startsWith(String(year)));
- const week=active.filter(a=>{const d=new Date();d.setDate(d.getDate()-6);return a.date>=dayKey(d)});
+ const weekStart=new Date(now);const mondayOffset=(weekStart.getDay()+6)%7;weekStart.setDate(weekStart.getDate()-mondayOffset);const week=active.filter(a=>a.date>=dayKey(weekStart)&&a.date<=today);
  const since=useMemo(()=>{const d=new Date();d.setDate(d.getDate()-(period-1));return dayKey(d)},[period]);
  const analysisScoped=active.filter(a=>{const typeOk=analysisType==='전체'||a.type===analysisType;if(customMode&&customStart&&customEnd)return typeOk&&a.date>=customStart&&a.date<=customEnd;return typeOk&&a.date>=since});
  const allDist=sum(active,'distanceKm');
