@@ -170,6 +170,7 @@ export default function Home(){
  const currentMonthTime=sum(currentMonthActivities,'durationSec');
  const monthDays=useMemo(()=>{const first=new Date(currentMonth.year,currentMonth.month,1);const last=new Date(currentMonth.year,currentMonth.month+1,0);const start=(first.getDay()+6)%7;const days:number[]=[];for(let i=0;i<start;i++)days.push(0);for(let d=1;d<=last.getDate();d++)days.push(d);return days},[currentMonth]);
  const daySet=useMemo(()=>new Set(active.map(a=>a.date)),[active]);
+ const activityCountByDate=useMemo(()=>{const counts:Record<string,number>={};active.forEach(a=>{counts[a.date]=(counts[a.date]||0)+1});return counts},[active]);
  let streak=0;{const d=new Date();while(daySet.has(dayKey(d))){streak+=1;d.setDate(d.getDate()-1)}}
  const filtered=useMemo(()=>active.filter(a=>(typeFilter==='전체'||a.type===typeFilter)&&(query.trim()===''||a.type.includes(query.trim())||fmtFullDate(a.date).includes(query.trim())||a.date.includes(query.trim())||String(a.note||'').includes(query.trim()))).sort((a,b)=>sort==='distance'?b.distanceKm-a.distanceKm:sort==='pace'?(a.avgPaceSecPerKm||99999)-(b.avgPaceSecPerKm||99999):b.date.localeCompare(a.date)),[active,typeFilter,query,sort]);
  const monthly=Array.from({length:12},(_,i)=>({m:i+1,d:yearActivities.filter(a=>new Date(`${a.date}T00:00:00`).getMonth()===i).reduce((s,a)=>s+a.distanceKm,0)}));
@@ -206,7 +207,7 @@ export default function Home(){
         <div><h3>{currentMonth.year}년 {currentMonth.month+1}월</h3><span className="calendar-summary">{currentMonthActivities.length}회 운동 · {currentMonthDist.toFixed(1)} km</span></div>
         <div style={{display:'flex',gap:5}}><button className="secondary" onClick={()=>setMonthOffset(v=>v-1)}>←</button><button className="secondary" onClick={()=>setMonthOffset(0)}>오늘</button><button className="secondary" onClick={()=>setMonthOffset(v=>v+1)}>→</button></div>
       </div>
-      <div className="workout-calendar-grid">{['월','화','수','목','금','토','일'].map(d=><div key={d} className="calendar-weekday">{d}</div>)}{monthDays.map((d,i)=>{const key=d?dayKey(new Date(currentMonth.year,currentMonth.month,d)):'',has=!!(d&&daySet.has(key));return <button key={i} onClick={()=>d&&jumpCalendarDay(key)} aria-label={d?`${key} 운동 보기`:undefined} className={has?'calendar-day active':'calendar-day'}>{d||''}</button>})}</div>
+      <div className="workout-calendar-grid">{['월','화','수','목','금','토','일'].map(d=><div key={d} className="calendar-weekday">{d}</div>)}{monthDays.map((d,i)=>{const key=d?dayKey(new Date(currentMonth.year,currentMonth.month,d)):'',has=!!(d&&daySet.has(key)),count=key?(activityCountByDate[key]||0):0;return <button key={i} onClick={()=>d&&jumpCalendarDay(key)} aria-label={d?`${key} 운동 ${count}회 보기`:undefined} className={has?'calendar-day active':'calendar-day'}><span>{d||''}</span>{d&&count>=2?<small className="calendar-count">[{count}]</small>:null}</button>})}</div>
       {calendarDate&&<div className="detail-note" style={{marginTop:10}}>선택 날짜 {fmtFullDate(calendarDate)} · {calendarActivities.length}회 · {sum(calendarActivities,'distanceKm').toFixed(2)} km</div>}
     </section>
     <section className="home-week-summary panel">
