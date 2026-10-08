@@ -988,5 +988,29 @@
     "avgHeartRate": 158,
     "avgCadence": 160,
     "source": "Samsung Health"
+  },
+  {
+    "id": "sh-08oct-244-2026-10-08",
+    "date": "2026-10-08",
+    "type": "러닝",
+    "distanceKm": 2.44,
+    "durationSec": 953,
+    "calories": 248,
+    "avgHeartRate": 156,
+    "maxHeartRate": 170,
+    "avgCadence": 164,
+    "maxCadence": 175,
+    "elevationGainM": 26,
+    "minAltitudeM": 41,
+    "maxAltitudeM": 69,
+    "uphillDistanceKm": 0.2,
+    "downhillDistanceKm": 0.12,
+    "avgSpeedKmh": 9.2,
+    "bestSpeedKmh": 10.1,
+    "avgPaceSecPerKm": 389,
+    "bestPaceSecPerKm": 354,
+    "steps": 2623,
+    "vo2max": 37.6,
+    "source": "Samsung Health"
   }
 ]
