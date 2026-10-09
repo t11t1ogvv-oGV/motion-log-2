@@ -1012,5 +1012,29 @@
     "steps": 2623,
     "vo2max": 37.6,
     "source": "Samsung Health"
+  },
+  {
+    "id": "sh-09oct-224-2026-10-09",
+    "date": "2026-10-09",
+    "type": "러닝",
+    "distanceKm": 2.24,
+    "durationSec": 862,
+    "calories": 219,
+    "steps": 2345,
+    "avgPaceSecPerKm": 384,
+    "bestPaceSecPerKm": 345,
+    "avgSpeedKmh": 9.3,
+    "bestSpeedKmh": 10.4,
+    "elevationGainM": 27,
+    "minAltitudeM": 40,
+    "maxAltitudeM": 69,
+    "uphillDistanceKm": 0.13,
+    "downhillDistanceKm": 0.09,
+    "avgHeartRate": 150,
+    "maxHeartRate": 164,
+    "avgCadence": 163,
+    "maxCadence": 177,
+    "vo2max": 37.6,
+    "source": "Samsung Health"
   }
 ]
