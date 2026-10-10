@@ -1038,24 +1038,6 @@
     "source": "Samsung Health"
   },
   {
-    "id": "sh-10oct-551-hike-2026-10-10",
-    "date": "2026-10-10",
-    "type": "등산",
-    "distanceKm": 5.51,
-    "durationSec": 5324,
-    "calories": 1017,
-    "avgSpeedKmh": 3.7,
-    "avgPaceSecPerKm": 966,
-    "elevationGainM": 456,
-    "minAltitudeM": 92,
-    "maxAltitudeM": 517,
-    "uphillDistanceKm": 2.37,
-    "downhillDistanceKm": 1.55,
-    "avgHeartRate": 127,
-    "maxHeartRate": 145,
-    "source": "Samsung Health"
-  },
-  {
     "id": "sh-10oct-109-run-2026-10-10",
     "date": "2026-10-10",
     "type": "러닝",
