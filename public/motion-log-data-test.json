@@ -1036,5 +1036,41 @@
     "maxCadence": 177,
     "vo2max": 37.6,
     "source": "Samsung Health"
+  },
+  {
+    "id": "sh-10oct-551-hike-2026-10-10",
+    "date": "2026-10-10",
+    "type": "등산",
+    "distanceKm": 5.51,
+    "durationSec": 5324,
+    "calories": 1017,
+    "avgSpeedKmh": 3.7,
+    "avgPaceSecPerKm": 966,
+    "elevationGainM": 456,
+    "minAltitudeM": 92,
+    "maxAltitudeM": 517,
+    "uphillDistanceKm": 2.37,
+    "downhillDistanceKm": 1.55,
+    "avgHeartRate": 127,
+    "maxHeartRate": 145,
+    "source": "Samsung Health"
+  },
+  {
+    "id": "sh-10oct-109-run-2026-10-10",
+    "date": "2026-10-10",
+    "type": "러닝",
+    "distanceKm": 1.09,
+    "durationSec": 460,
+    "calories": 110,
+    "steps": 1229,
+    "avgPaceSecPerKm": 419,
+    "bestPaceSecPerKm": 354,
+    "avgSpeedKmh": 8.5,
+    "bestSpeedKmh": 10.1,
+    "avgHeartRate": 145,
+    "maxHeartRate": 159,
+    "avgCadence": 160,
+    "maxCadence": 181,
+    "source": "Samsung Health"
   }
 ]
