@@ -1077,5 +1077,29 @@
     "avgCadence": 164,
     "maxCadence": 183,
     "source": "Samsung Health"
+  },
+  {
+    "id": "sh-13oct-213-run-2026-10-13",
+    "date": "2026-10-13",
+    "type": "러닝",
+    "distanceKm": 2.13,
+    "durationSec": 875,
+    "calories": 220,
+    "steps": 2397,
+    "avgPaceSecPerKm": 409,
+    "bestPaceSecPerKm": 362,
+    "avgSpeedKmh": 8.7,
+    "bestSpeedKmh": 9.9,
+    "elevationGainM": 26,
+    "minAltitudeM": 42,
+    "maxAltitudeM": 71,
+    "uphillDistanceKm": 0.21,
+    "downhillDistanceKm": 0.14,
+    "avgHeartRate": 146,
+    "maxHeartRate": 160,
+    "avgCadence": 164,
+    "maxCadence": 179,
+    "vo2max": 37.6,
+    "source": "Samsung Health"
   }
 ]
