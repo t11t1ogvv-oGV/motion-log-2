@@ -1195,5 +1195,15 @@
     "maxCadence": 183,
     "vo2max": 37.8,
     "source": "Samsung Health"
+  },
+  {
+    "id": "manual-26oct-480-run-2026-10-26",
+    "date": "2026-10-26",
+    "type": "러닝",
+    "distanceKm": 4.8,
+    "durationSec": 1860,
+    "avgPaceSecPerKm": 388,
+    "avgSpeedKmh": 9.29,
+    "source": "Manual entry (watch error; distance and duration supplied by user)"
   }
 ]
