@@ -1205,5 +1205,27 @@
     "avgPaceSecPerKm": 388,
     "avgSpeedKmh": 9.29,
     "source": "Manual entry (watch error; distance and duration supplied by user)"
+  },
+  {
+    "id": "samsung-health-2026-10-28-run-251",
+    "date": "2026-10-28",
+    "type": "러닝",
+    "distanceKm": 2.51,
+    "durationSec": 979,
+    "avgPaceSecPerKm": 389,
+    "avgSpeedKmh": 9.2,
+    "calories": 250,
+    "steps": 2617,
+    "avgHeartRate": 151,
+    "maxHeartRate": 164,
+    "avgCadence": 160,
+    "maxCadence": 178,
+    "elevationGainM": 27,
+    "minAltitudeM": 44,
+    "maxAltitudeM": 71,
+    "uphillKm": 0.27,
+    "downhillKm": 0.19,
+    "vo2max": 37.9,
+    "source": "Samsung Health screenshots"
   }
 ]
