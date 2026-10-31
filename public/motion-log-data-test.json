@@ -1227,5 +1227,72 @@
     "downhillKm": 0.19,
     "vo2max": 37.9,
     "source": "Samsung Health screenshots"
+  },
+  {
+    "id": "samsung-health-2026-10-31-run-673",
+    "date": "2026-10-31",
+    "type": "러닝",
+    "distanceKm": 6.73,
+    "durationSec": 2875,
+    "avgPaceSecPerKm": 426,
+    "avgSpeedKmh": 8.4,
+    "calories": 659,
+    "steps": 7476,
+    "avgHeartRate": 143,
+    "maxHeartRate": 162,
+    "avgCadence": 155,
+    "maxCadence": 176,
+    "elevationGainM": 80,
+    "minAltitudeM": 39,
+    "maxAltitudeM": 72,
+    "uphillKm": 0.7,
+    "downhillKm": 0.33,
+    "vo2max": 37.9,
+    "splits": [
+      {
+        "km": 1,
+        "durationSec": 412,
+        "avgHeartRate": 132,
+        "paceSecPerKm": 412
+      },
+      {
+        "km": 2,
+        "durationSec": 417,
+        "avgHeartRate": 150,
+        "paceSecPerKm": 417
+      },
+      {
+        "km": 3,
+        "durationSec": 368,
+        "avgHeartRate": 150,
+        "paceSecPerKm": 368
+      },
+      {
+        "km": 4,
+        "durationSec": 498,
+        "avgHeartRate": 139,
+        "paceSecPerKm": 498
+      },
+      {
+        "km": 5,
+        "durationSec": 393,
+        "avgHeartRate": 146,
+        "paceSecPerKm": 393
+      },
+      {
+        "km": 6,
+        "durationSec": 488,
+        "avgHeartRate": 139,
+        "paceSecPerKm": 488
+      },
+      {
+        "km": 7,
+        "durationSec": 296,
+        "distanceKm": 0.74,
+        "avgHeartRate": 150,
+        "paceSecPerKm": 400
+      }
+    ],
+    "source": "Samsung Health screenshots"
   }
 ]
